@@ -38,11 +38,12 @@ jobs:
       with:
         submodules: true
     - name: Setup environment
-      shell: cmd
       run: |
-        winget install --id=MiKTeX.MiKTeX -e --accept-source-agreements --accept-package-agreements
+        choco install miktex.install
+      shell: pwsh
     - name: Build
       run: |
+        Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
         refreshenv
         mkdir build
         cmake -S . -B build -D USE_LATEX=ON
