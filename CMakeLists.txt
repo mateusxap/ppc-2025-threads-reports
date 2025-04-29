@@ -14,4 +14,4 @@ if( USE_LATEX )
     endif()
 endif( USE_LATEX )
 
-add_subdirectory(modules)
+add_subdirectory(tasks)

@@ -1,4 +1,4 @@
-[![Build application](https://github.com/learning-process/programming_course_reports/actions/workflows/main.yml/badge.svg)](https://github.com/learning-process/programming_course_reports/actions/workflows/main.yml)
+[![Build application](https://github.com/learning-process/ppc-2025-threads-reports/actions/workflows/main.yml/badge.svg)](https://github.com/learning-process/ppc-2025-threads-reports/actions/workflows/main.yml)
 
 # Programming Course Reports
 
@@ -72,10 +72,10 @@ Navigate to a source code folder.
   * View report `<project's folder>/build/bin`
 
 ## 3. How to submit you work
-* There are `task_1`, `task_2`, `task_3`, `task_4` folders in `modules` directory. There are 4 task's reports for the semester. Move to a folder of your task. Make a directory named `<last name>_<first letter of name>_<short task name>`. Example: `task1/nesterov_a_vector_sum`.
+* There are `reports` folders in `tasks` directory. There are 4 task's reports for the semester. Move to a folder of your task. Make a directory named `<last name>_<first letter of name>_<short task name>`. Example: `reports/nesterov_a_vector_sum`.
 * Go into the newly created folder and begin you work on the report. There must be only 2 files and 1 of them must be written by you:
   - `nesterov_a_vector_sum.tex` - a LaTeX report file which consider information about your program, name it in the same way as `<last name>_<first letter of name>_<short task name>` same as directory.
-  - `CMakeLists.txt` - a file to configure your project. Examples for each configuration can be found in `test_tasks/test_latex`.
+  - `CMakeLists.txt` - a file to configure your project. Examples for each configuration can be found in `examples/test_latex`.
 * The number of directories will increase with time. To build only your project, you need to do the following:
   ```
   cmake --build . --target <name task's directory> 
