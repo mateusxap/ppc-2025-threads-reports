@@ -1,0 +1,736 @@
+\documentclass[12pt]{article}
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[russian]{babel}
+\usepackage{hyperref}
+\usepackage{amsmath, amssymb}
+\usepackage{titlesec}
+\usepackage{tocloft}
+\usepackage{multirow}
+\usepackage{indentfirst}
+\usepackage[nottoc,notlot,notlof]{tocbibind}
+\usepackage{geometry}
+\usepackage{xcolor} 
+\usepackage{listings}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.98,0.98,0.97} 
+\definecolor{keywordblue}{rgb}{0.0,0.0,0.6}
+\definecolor{typeblue}{rgb}{0.1,0.1,0.7}
+\definecolor{commentgreen}{rgb}{0.13,0.54,0.13} 
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{commentgreen}\itshape,
+    keywordstyle=\color{keywordblue}\bfseries,
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2,
+    classoffset=1, 
+    morekeywords={Point, std, size_t, uint8_t, auto, bool, int, void, class, public, private, template, typename, const, return, if, else, for, while, new, delete, using, namespace, nullptr, true, false, this, enum, struct, case, break, default, continue, double, float, unsigned, char, long, short, static, virtual, friend, explicit, inline, operator, sizeof, typedef, union, volatile, mutable, constexpr, decltype, noexcept},
+    classoffset=0,
+    emph={TestTaskSequential, TestTaskOMP, TestTaskTBB, TestTaskSTL, TestTaskALL, RunImpl, IndexOfMinElement, IsAllCollinear, IsAllSame, ParallelSort, GrahamScan, PreProcessingImpl, ValidationImpl, PostProcessingImpl, CrossProduct, Point, kMinInputPoints, kMinStackPoints, input_, output_}, 
+    emphstyle=\color{typeblue}\bfseries, 
+    frame=single, 
+    framerule=0.5pt, 
+    framesep=3pt,
+    rulesepcolor=\color{codegray} 
+}
+\lstset{style=mystyle}
+
+\geometry{left=2.5cm, right=1.5cm, top=2cm, bottom=2cm}
+
+\renewcommand{\cftsecleader}{\cftdotfill{\cftdotsep}}
+\renewcommand{\cftsubsecleader}{\cftdotfill{\cftdotsep}} 
+\renewcommand{\cftsecfont}{\normalfont} 
+\renewcommand{\cftsecpagefont}{\normalfont}
+
+\renewcommand{\cfttoctitlefont}{\hfill\Large\bfseries}
+\renewcommand{\cftaftertoctitle}{\hfill\null}
+
+\setlength{\cftsecindent}{0pt} 
+\setlength{\cftsubsecindent}{20pt} 
+\setlength{\parindent}{1.25cm} 
+
+\titleformat{\section}
+    {\Large\bfseries}
+    {\thesection}
+    {.3em}
+    {}
+
+\titleformat{\subsection}
+    {\large\bfseries}
+    {\thesubsection}
+    {0.3em}
+    {}
+
+\titleformat{\subsubsection}
+    {\normalsize\bfseries}
+    {\thesubsubsection}
+    {0.3em}
+    {}
+
+\renewcommand{\thesection}{\arabic{section}.}          
+\renewcommand{\thesubsection}{\thesection\arabic{subsection}}  
+
+\begin{document}
+\thispagestyle{empty}
+\begin{center}
+    {\bfseries
+    {\large «Национальный исследовательский Нижегородский государственный университет им.
+Н.И. Лобачевского» (ННГУ) }\\[2em]
+    {\large Институт информационных технологий математики и механики }\\[1em]
+    }
+    \vspace*{\fill} 
+    {\LARGE\bfseries Отчет}\\[1em]
+    {\large Умножение плотных матриц. Элементы типа double. Блочная схема, алгоритм Фокса.}\\[5em]
+    \vspace{\fill} 
+     \hfill\parbox{0.4\textwidth}{
+        Выполнил:\\
+        студент группы 3822Б1ПР2\\
+        Филатьев Владислав Евгеньевич\\[2em]
+        Преподаватель:\\
+        доцент, кандидат технических наук\\
+        Сысоев Александр Владимирович\\[2em]
+    }
+
+    Нижний Новгород, 2025 г.
+\end{center}
+\newpage
+
+\tableofcontents
+\newpage
+
+\section{Введение}
+В современных вычислительных системах эффективное умножение матриц является одной из ключевых задач, особенно в областях, требующих обработки больших объёмов данных, таких как машинное обучение, компьютерное моделирование и научные расчёты. Умножение плотных матриц с элементами типа \texttt{double} представляет собой ресурсоёмкую операцию, сложность которой составляет $\mathcal{O}(n^3)$ для матриц размерности $n \times n$. Это делает необходимым применение параллельных вычислений для ускорения процесса.
+
+Одним из эффективных подходов к распараллеливанию матричного умножения является блочная схема, которая позволяет распределить вычисления между несколькими процессами или потоками, уменьшая накладные расходы на передачу данных. В частности, алгоритм Фокса~--- это специализированный метод для сетевых топологий типа решётки, который минимизирует объём коммуникаций за счёт поэтапного распространения блоков матрицы между процессами.
+
+В данном отчёте рассматривается реализация умножения плотных матриц с использованием блочной схемы и алгоритма Фокса. Основное внимание уделяется разработке и анализу различных параллельных реализаций этого алгоритма с использованием технологий OpenMP, Intel Threading Building Blocks (TBB), стандартных средств многопоточности C++ (STL), а также гибридного подхода с использованием MPI и STL. Целью работы является сравнение производительности различных параллельных подходов и выявление наиболее эффективных из них для данной задачи.
+
+\newpage
+\section{Постановка задачи}
+\subsection{Математическая постановка}
+Даны две плотные матрицы $A$ и $B$ размерности $n \times n$, элементы которых имеют тип \texttt{double}. Матрицы представимы в виде:
+
+\[
+A = \begin{pmatrix}
+a_{11} & a_{12} & \dots & a_{1n} \\
+a_{21} & a_{22} & \dots & a_{2n} \\
+\vdots & \vdots & \ddots & \vdots \\
+a_{n1} & a_{n2} & \dots & a_{nn}
+\end{pmatrix}, \quad
+B = \begin{pmatrix}
+b_{11} & b_{12} & \dots & b_{1n} \\
+b_{21} & b_{22} & \dots & b_{2n} \\
+\vdots & \vdots & \ddots & \vdots \\
+b_{n1} & b_{n2} & \dots & b_{nn}
+\end{pmatrix},
+\]
+
+где $a_{ij}, b_{ij} \in \mathbb{R}$.\\
+
+Требуется вычислить матрицу $C = A \times B$ размерности $n \times n$, элементы которой определяются по правилу:
+
+\[
+c_{ij} = \sum_{k=1}^{n} a_{ik} \cdot b_{kj}, \quad i, j = 1, \dots, n.
+\]
+
+Для ускорения вычислений применяется \textbf{блочный алгоритм Фокса}, основанный на разбиении исходных матриц на квадратные блоки размером $m \times m$, где $m$ делит $n$ нацело ($n = m \cdot q$). Каждая матрица представляется в виде набора подматриц:
+
+\[
+A = \begin{pmatrix}
+A_{11} & A_{12} & \dots & A_{1q} \\
+A_{21} & A_{22} & \dots & A_{2q} \\
+\vdots & \vdots & \ddots & \vdots \\
+A_{q1} & A_{q2} & \dots & A_{qq}
+\end{pmatrix}, \quad
+B = \begin{pmatrix}
+B_{11} & B_{12} & \dots & B_{1q} \\
+B_{21} & B_{22} & \dots & B_{2q} \\
+\vdots & \vdots & \ddots & \vdots \\
+B_{q1} & B_{q2} & \dots & B_{qq}
+\end{pmatrix},
+\]
+
+где $A_{uv}, B_{uv} \in \mathbb{R}^{m \times m}$.\\
+Результирующая матрица $C$ также разбивается на блоки $C_{ij}$, вычисляемые по формуле:
+
+\[
+C_{ij} = \sum_{k=1}^{q} A_{ik} \times B_{kj}.
+\]
+
+\subsection{Программная постановка задачи}
+Необходимо реализовать следующие версии алгоритма умножения плотных матриц с использованием блочной схемы и алгоритма Фокса:
+
+\begin{itemize}
+    \item Последовательная версия (SEQ)
+    \item Параллельная версия с использованием OpenMP (OMP)
+    \item Параллельная версия с использованием Intel Threading Building Blocks (TBB)
+    \item Параллельная версия с использованием стандартных потоков C++ (STL)
+    \item Гибридная параллельная версия с использованием MPI и STL (ALL)
+\end{itemize}
+
+Для каждой реализации необходимо:
+
+\begin{itemize}
+    \item Обеспечить корректное чтение входных матриц
+    \item Реализовать блочное разбиение матриц согласно алгоритму Фокса
+    \item Выполнить параллельное умножение блоков матриц
+    \item Собрать результирующую матрицу из вычисленных блоков
+    \item Провести анализ производительности и сравнить различные реализации
+\end{itemize}
+
+\subsubsection{Входные данные}
+
+Две квадратные матрицы $A$ и $B$ размерности $n \times n$, где элементы матриц --- числа двойной точности (тип \texttt{double}). Минимальный размер матриц --- $1 \times 1$.
+
+\subsubsection{Выходные данные}
+
+Результирующая матрица $C = A \times B$ размерности $n \times n$, где каждый элемент вычислен как скалярное произведение соответствующих строки и столбца исходных матриц. Матрица должна быть записана в том же формате, что и входные данные.
+
+\subsubsection{Требования к реализации}
+
+\begin{itemize}
+    \item Поддержка произвольного размера матриц
+    \item Оптимальный выбор размера блока для каждой параллельной реализации
+    \item Минимизация накладных расходов на коммуникации между процессами/потоками
+\end{itemize}
+
+\newpage
+\section{Описание алгоритма Фокса}
+
+Алгоритм Фокса для блочного умножения матриц состоит из следующих основных шагов:
+
+\begin{enumerate}
+    \item \textbf{Разбиение матриц на блоки.} Исходные матрицы $A$ и $B$ размерности $n \times n$ разбиваются на квадратные блоки размером $m \times m$, где $m$ делит $n$ нацело ($n = m \cdot q$). Получаем матрицы блоков:
+    
+    \[
+    A = \begin{pmatrix}
+    A_{11} & \cdots & A_{1q} \\
+    \vdots & \ddots & \vdots \\
+    A_{q1} & \cdots & A_{qq}
+    \end{pmatrix}, \quad
+    B = \begin{pmatrix}
+    B_{11} & \cdots & B_{1q} \\
+    \vdots & \ddots & \vdots \\
+    B_{q1} & \cdots & B_{qq}
+    \end{pmatrix}
+    \]\\
+    
+    \item \textbf{Распределение блоков по потока.} В параллельной реализации блоки распределяются по потока в виде двумерной сетки $q \times q$. Каждый поток $P_{ij}$ получает начальные блоки $A_{ij}$ и $B_{ij}$.
+    
+    \item \textbf{Основная фаза алгоритма.} Выполняется $q$ итераций:
+    \begin{itemize}
+        \item На каждой итерации $k$ поток $P_{ij}$ умножает текущий блок $A$ на локальный блок $B$ и прибавляет результат к $C_{ij}$:
+        \[ C_{ij} += A_{ik} \times B_{kj} \]
+        
+        \item Блоки матрицы $A$ циклически сдвигаются по строкам
+        
+        \item Блоки матрицы $B$ циклически сдвигаются по столбцам
+    \end{itemize}
+    
+    \item \textbf{Сбор результатов.} После завершения всех итераций блоки $C_{ij}$ собираются формируя итоговую матрицу $C = A \times B$.
+\end{enumerate}
+\par
+\textbf{Оптимизации и особенности реализации:}
+
+\begin{itemize}
+    \item При реализации с OpenMP/TBB параллелизация выполняется внутри операций с отдельными блоками
+    
+    \item Для гибридной реализации (MPI+STL) внешний уровень параллелизма - распределение блоков по MPI-процессам, внутренний - параллельная обработка блоков с помощью STL
+    
+    \item Размер блока $m$ выбирается исходя из оптимального распределения задач между процессами(потоками)
+\end{itemize}
+
+\textbf{Предварительные проверки:}
+Перед выполнением основного алгоритма необходимо:
+\begin{itemize}
+    \item Проверить, что матрицы квадратные и одного размера, иначе приводится к необходимому виду
+    \item Убедиться, что размер матриц кратен размеру блока, иначе приводится к необходимому виду
+    \item Проверить выделение памяти под все блоки и промежуточные результаты
+\end{itemize}
+
+
+
+\newpage
+\section{Детали реализации и схемы распараллеливания}
+
+Алгоритм реализует блочное умножение плотных матриц (элементы типа \texttt{double}) с использованием схемы Фокса. Основные особенности:
+\begin{itemize}
+    \item Матрицы разбиваются на квадратные блоки размером \texttt{size\_block\_ × size\_block\_}
+    \item Используется декомпозиция по строкам и столбцам блоков
+    \item На каждом шаге алгоритма происходит:
+    \begin{itemize}
+        \item Широковещательная рассылка блоков матрицы $A$ 
+        \item Локальное перемножение блоков матриц $A$ и $B$
+        \item Циклический сдвиг блоков матрицы $B$ (вертикальная трансляция)
+    \end{itemize}
+\end{itemize}
+
+\subsection{Последовательная реализация (SEQ)}
+Классическая последовательная версия алгоритма Фокса:
+\begin{itemize}
+    \item Инициализация матрицы-результата $C$ нулями
+    \item Тройной вложенный цикл:
+    \begin{itemize}
+        \item Внешний цикл по шагам алгоритма (\texttt{step})
+        \item Средний цикл по блокам строк (\texttt{i})
+        \item Внутренний цикл по блокам столбцов (\texttt{j})
+    \end{itemize}
+    \item Для каждого блока:
+    \begin{itemize}
+        \item Вычисление корневого блока \texttt{root = (i + step) \% grid\_size}
+        \item Тройное вложенное перемножение элементов блока
+        \item Накопление результата в соответствующем блоке матрицы $C$
+    \end{itemize}
+\end{itemize}
+
+\subsection{OpenMP реализация (OMP)}
+Параллельная версия с использованием OpenMP:
+\begin{itemize}
+    \item Параллелизация основного тройного цикла через \texttt{\#pragma omp parallel for}
+    \item Оптимизации:
+    \begin{itemize}
+        \item Локализация вычислений через приватные \texttt{local\_block}
+        \item Минимизация критических секций при записи результатов
+    \end{itemize}
+    \item Синхронизация:
+    \begin{itemize}
+        \item Критическая секция (\texttt{\#pragma omp critical}) для атомарного обновления результатов
+        \item Неявные барьеры между параллельными регионами
+    \end{itemize}
+\end{itemize}
+
+\subsection{TBB реализация}
+Реализация с использованием Intel Threading Building Blocks:
+\begin{itemize}
+    \item Двухуровневый параллелизм:
+    \begin{itemize}
+        \item Верхний уровень: \texttt{tbb::parallel\_for} по диапазону итераций
+        \item Нижний уровень: оптимизированные векторные операции внутри блоков
+    \end{itemize}
+    \item Специфичные для TBB особенности:
+    \begin{itemize}
+        \item Использование \texttt{tbb::mutex} для потокобезопасной записи
+        \item Динамическое планирование задач через work-stealing
+        \item Явное управление числом потоков через \texttt{tbb::task\_arena}
+    \end{itemize}
+\end{itemize}
+
+\subsection{STL реализация}
+Параллельная версия на стандартных потоках C++:
+\begin{itemize}
+    \item Ручное управление потоками через \texttt{std::thread}
+    \item Статическое распределение работы:
+    \begin{itemize}
+        \item Равномерное разделение диапазона итераций
+        \item Обработка остатка в последнем потоке
+    \end{itemize}
+    \item Синхронизация через \texttt{std::mutex}
+\end{itemize}
+
+\subsection{MPI + STL реализация (ALL)}
+Гибридная реализация с распределенной памятью:
+\begin{itemize}
+    \item \textbf{Фаза инициализации:}
+    \begin{itemize}
+        \item Бродкаст параметров (\texttt{size\_block\_}, \texttt{size\_}) и матриц через \texttt{boost::mpi::broadcast}
+        \item Разделение работы между процессами с учетом остатка
+    \end{itemize}
+    \item \textbf{Вычислительная фаза:}
+    \begin{itemize}
+        \item Каждый MPI-процесс использует многопоточность для своего диапазона
+        \item Локальное накопление частичных результатов
+    \end{itemize}
+    \item \textbf{Фаза редукции:}
+    \begin{itemize}
+        \item Нулевой процесс собирает результаты через \texttt{world\_recv}
+        \item Остальные процессы отправляют данные через \texttt{world\_send}
+        \item Барьерная синхронизация \texttt{world\_barrier}
+    \end{itemize}
+\end{itemize}
+
+
+
+\newpage
+\section{Эксперименты}
+\subsection{Условия проведения}
+Эксперименты проводились для оценки производительности различных реализаций алгоритма Фокса.
+\begin{itemize}
+    \item \textbf{Наборы данных:} Использовался набор из случайно сгенерированных матриц размера $800 \times 800$ типа \texttt{double}. Элементы равномерно распределены в интервале $[-100, 100]$.
+
+    
+    \item \textbf{Параметры запуска:} Для параллельных версий необходимо указать фактическое количество потоков (для OMP, TBB, STL) и количество процессов/потоков на процесс (для ALL), использованных при тестировании.
+    \item \textbf{Измерение времени:} Время выполнения измерялось для полного конвейера обработки данных каждой реализации. Усреднялось по 10 запускам.
+\end{itemize}
+
+\subsection{Результаты}
+В таблице ниже представлены результаты измерения времени выполнения (pipeline\_run и task\_run) для различных реализаций. Анализ производительности и расчет ускорения в следующем разделе основаны на времени pipeline\_run.
+
+\begin{center}
+\begin{tabular}{|l|c|c|}
+\hline
+\textbf{Технология} & \textbf{Pipeline Run (с)} & \textbf{Task Run (с)} \\
+\hline
+SEQ                    & 8.2013           & 8.3494       \\
+\hline
+OMP (4 пт)             & 2.2026           & 2.2465      \\
+\hline
+TBB (4 пт)             & 2.2054           & 2.2159       \\
+\hline
+STL (4 пт)             & 2.2462           & 2.2640       \\
+\hline
+ALL (4 пр, 4 пт/пр)    & 1.2352           & 1.2521       \\
+\hline
+\end{tabular}
+\end{center}
+
+
+\subsection{Анализ результатов}
+Для анализа производительности параллельных реализаций OMP, TBB и STL использовалось 4 потока. Для гибридной реализации ALL использовалось 4 MPI-процесса, каждый из которых задействовал 4 STL-потока.
+Ускорение ($S_p$) параллельного алгоритма по сравнению с последовательным ($T_{seq}$) на $p$ процессорах (потоках) вычисляется как $S_p = T_{seq} / T_p$, где $T_p$ - время выполнения параллельного алгоритма.
+Эффективность ($E_p$) параллельного алгоритма определяется как $E_p = S_p / p \times 100\%$.
+
+В таблице ниже представлены рассчитанные значения ускорения и эффективности для параллельных реализаций (OMP, TBB, STL) при использовании 4 потоков, по сравнению с последовательной версией ($T_{seq} = 8.2013$ с).
+
+\begin{center}
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Реализация} & \textbf{Время (с), $T_2$} & \textbf{Ускорение, $S_2$} & \textbf{Эффективность, $E_2$ (\%)} \\
+\hline
+OMP (4 потока)    & 2.2026 & 3.72                 & 93.00 \\
+\hline
+TBB (4 потока)    & 2.2054 & 3.71                 & 92.75 \\
+\hline
+STL (4 потока)    & 2.2462 & 3.65                 & 91.25 \\
+\hline
+\end{tabular}
+\end{center}
+
+Судя по полученным данным:
+\begin{itemize}
+    \item Все многопоточные реализации (OMP, TBB, STL) при использовании 4 потоков продемонстрировали ускорение по сравнению с последовательной версией.
+    \item Наибольшее ускорение ($S_2 \approx 3.72$) и эффективность ($E_2 \approx 93\%$) показала OMP реализация. Это свидетельствует о хорошей адаптации алгоритмов OMP к задаче и эффективном использовании четырех потоков.
+    \item TBB реализация также показала хорошие результаты ($S_2 \approx 3.71$, $E_2 \approx 92.75\%$), незначительно уступая OMP.
+    \item STL реализация, основанная на стандартных потоках C++, показала наименьшее ускорение ($S_2 \approx 3.65$) и эффективность ($E_2 \approx 91.25\%$) среди многопоточных версий, что может быть связано с более высокими накладными расходами на ручное управление потоками и синхронизацию в конкретной реализации.
+    \item Гибридная реализация MPI+STL (ALL), с временем выполнения 1.2352 секунды (4 процесса, по 4 потока на каждый), показала значительно более высокую скорость по сравнению с другими параллельными версиями. Однако при этом для решения задачи было использовано больше ресурсов, чем в других параллельных версиях (4 процесса и 16 потоков).
+\end{itemize}
+
+\newpage
+\section{Выводы по результатам экспериментов}
+\begin{enumerate}
+    \item Параллельные реализации алгоритма Фокса, основанные на OpenMP, TBB, STL и MPI+STL, продемонстрировали значительное ускорение по сравнению с последовательной версией.
+    \item Реализация на OpenMP показала наивысшую производительность среди протестированных многопоточных подходов (OpenMP, TBB, STL) для данного набора данных.
+    \item  Реализация MPI + STL обеспечивает увеличение скорости за счет использования большего количества процессов и потоков, что позволяет более эффективно распределять вычислительные нагрузки.
+    \item Основное увеличение производительности достигается благодаря вычислению значений матрицы с использованием блоков. Однако узким местом может стать процесс объединения результатов между процессами или потоками.
+\end{enumerate}
+
+\newpage
+\section{Заключение}
+В рамках данной работы было исследовано блочное перемножение плотных матриц с использованием алгоритма Фокса. Были разработаны и проанализированы последовательная и параллельные реализации алгоритма, включая версии на OpenMP, Intel TBB, STL и гибридный подход MPI+STL.
+
+Основные результаты работы:
+\begin{enumerate}
+    \item Реализован полный набор версий алгоритма Фокса: от базовой последовательной до гибридной MPI+STL реализации, демонстрирующей наилучшую производительность на распределенных системах
+    
+    \item Проведен всесторонний анализ производительности на матрицах крупного размера ($800 \times 800$):
+    \begin{itemize}
+        \item Параллельные реализации показали ускорение до 3.72 относительно последовательной версии
+        \item Гибридный подход (4 процесса $\times$ 4 потока) достиг времени выполнения 1.2352 с
+    \end{itemize}
+    
+    \item Выявлены ключевые закономерности:
+    \begin{itemize}
+        \item Наибольший выигрыш достигается при распараллеливании блочных операций перемножения
+        \item Коммуникационные издержки становятся определяющим фактором для MPI-версии
+        \item Оптимальный размер блока зависит от размеров матрицы и архитектуры вычислительной системы
+    \end{itemize}
+\end{enumerate}
+
+Перспективные направления дальнейших исследований:
+\begin{itemize}
+    \item Оптимизация коммуникационной схемы с использованием асинхронных операций MPI
+    \item Эксперименты с различными стратегиями балансировки нагрузки
+    \item Исследование эффективности на матрицах сверхбольшой размерности
+\end{itemize}
+
+\newpage
+\section{Литература}
+\begin{thebibliography}{99}
+    \bibitem{lectures} 
+    Лекции по предмету \textit{Параллельное программирование}.
+    
+    \bibitem{Wiki} 
+    Алгоритм умножения матриц с помощью алгоритма Фокса. \textit{Wikipedia}. 
+    
+    \bibitem{MPI} 
+    Технологии параллельного программирования: Message Passing Interface (MPI).
+    
+    \bibitem{OMP} 
+    Что такое OpenMP? \textit{Документация OpenMP}.
+    
+    \bibitem{TBB} 
+    Средства разработки параллельных программ для систем с общей памятью: Библиотека Intel Threading Building Blocks. \textit{Intel}.
+    
+    \bibitem{STL} 
+    Написание многопоточных приложений на C++. \textit{Документация STL}.
+\end{thebibliography}
+
+
+\newpage
+\section{Приложение}
+
+В данном разделе представлены ключевые фрагменты кода для различных реализаций.
+
+\subsection{Последовательная реализация (SEQ) - RunImpl}
+\begin{lstlisting}[language=C++]
+bool filatev_v_foks_seq::Focks::RunImpl() {
+  matrix_c_.assign(size_ * size_, 0);
+
+  size_t grid_size = size_ / size_block_;
+
+  for (size_t step = 0; step < grid_size; ++step) {
+    for (size_t i = 0; i < grid_size; ++i) {
+      for (size_t j = 0; j < grid_size; ++j) {
+        size_t root = (i + step) % grid_size;
+        for (size_t bi = 0; bi < size_block_; ++bi) {
+          for (size_t bj = 0; bj < size_block_; ++bj) {
+            for (size_t bk = 0; bk < size_block_; ++bk) {
+              matrix_c_[((i * size_block_ + bi) * size_) + (j * size_block_) + bj] +=
+                  matrix_a_[((i * size_block_ + bi) * size_) + (root * size_block_) + bk] *
+                  matrix_b_[((root * size_block_ + bk) * size_) + (j * size_block_) + bj];
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return true;
+}
+\end{lstlisting}
+\newpage
+
+\subsection{OpenMP реализация (OMP) - RunImpl}
+\begin{lstlisting}[language=C++]
+bool filatev_v_foks_omp::Focks::RunImpl() {
+  matrix_c_.assign(size_ * size_, 0);
+
+  int grid_size = (int)(size_ / size_block_);
+
+#pragma omp parallel for
+  for (int step_i_j = 0; step_i_j < grid_size * grid_size * grid_size; ++step_i_j) {
+    int step = step_i_j / (grid_size * grid_size);
+    int i = (step_i_j % (grid_size * grid_size)) / grid_size;
+    int j = step_i_j % grid_size;
+
+    size_t root = (i + step) % grid_size;
+    std::vector<double> local_block(size_block_ * size_block_, 0);
+
+    for (size_t bi = 0; bi < size_block_; ++bi) {
+      for (size_t bj = 0; bj < size_block_; ++bj) {
+        for (size_t bk = 0; bk < size_block_; ++bk) {
+          local_block[(bi * size_block_) + bj] +=
+              matrix_a_[((i * size_block_ + bi) * size_) + (root * size_block_) + bk] *
+              matrix_b_[((root * size_block_ + bk) * size_) + (j * size_block_) + bj];
+        }
+      }
+    }
+
+#pragma omp critical
+    {
+      for (size_t bi = 0; bi < size_block_; ++bi) {
+        for (size_t bj = 0; bj < size_block_; ++bj) {
+          matrix_c_[((i * size_block_ + bi) * size_) + (j * size_block_) + bj] += local_block[(bi * size_block_) + bj];
+        }
+      }
+    }
+  }
+
+  return true;
+}
+\end{lstlisting}
+\newpage
+
+\subsection{TBB реализация - ключевые параллельные участки}
+\begin{lstlisting}[language=C++]
+void ComputeBlock(const std::vector<double>& matrix_a, const std::vector<double>& matrix_b,
+                  std::vector<double>& local_block, size_t i, size_t j, size_t root, size_t size_block, size_t size) {
+  for (size_t bi = 0; bi < size_block; ++bi) {
+    for (size_t bj = 0; bj < size_block; ++bj) {
+      for (size_t bk = 0; bk < size_block; ++bk) {
+        local_block[(bi * size_block) + bj] += matrix_a[((i * size_block + bi) * size) + (root * size_block) + bk] *
+                                               matrix_b[((root * size_block + bk) * size) + (j * size_block) + bj];
+      }
+    }
+  }
+}
+
+void AccumulateResult(std::vector<double>& matrix_c, const std::vector<double>& local_block, size_t i, size_t j,
+                      size_t size_block, size_t size, tbb::mutex& write_mutex) {
+  tbb::mutex::scoped_lock lock(write_mutex);
+  for (size_t bi = 0; bi < size_block; ++bi) {
+    for (size_t bj = 0; bj < size_block; ++bj) {
+      matrix_c[((i * size_block + bi) * size) + (j * size_block) + bj] += local_block[(bi * size_block) + bj];
+    }
+  }
+}
+bool filatev_v_foks_tbb::Focks::RunImpl() {
+  matrix_c_.assign(size_ * size_, 0);
+  int grid_size = (int)(size_ / size_block_);
+
+  oneapi::tbb::mutex write_mutex;
+
+  const int num_threads = ppc::util::GetPPCNumThreads();
+  oneapi::tbb::task_arena arena(num_threads);
+
+  arena.execute([&] {
+    oneapi::tbb::parallel_for(tbb::blocked_range<int>(0, grid_size * grid_size * grid_size),
+                              [&](const tbb::blocked_range<int>& range) {
+                                for (int step_i_j = range.begin(); step_i_j != range.end(); ++step_i_j) {
+                                  int step = step_i_j / (grid_size * grid_size);
+                                  int i = (step_i_j % (grid_size * grid_size)) / grid_size;
+                                  int j = step_i_j % grid_size;
+                                  size_t root = (i + step) % grid_size;
+
+                                  std::vector<double> local_block(size_block_ * size_block_, 0);
+                                  ComputeBlock(matrix_a_, matrix_b_, local_block, i, j, root, size_block_, size_);
+                                  AccumulateResult(matrix_c_, local_block, i, j, size_block_, size_, write_mutex);
+                                }
+                              });
+  });
+
+  return true;
+}
+\end{lstlisting}
+\newpage
+
+\subsection{STL реализация - ключевые параллельные участки}
+\begin{lstlisting}[language=C++]
+double filateva_e_simpson_stl::Simpson::IntegralFunc(unsigned long start, unsigned long end) {
+  double local_res = 0.0;
+  for (unsigned long i = start; i < end; i++) {
+    unsigned long temp = i;
+    std::vector<double> param(mer_);
+    double weight = 1.0;
+
+    for (size_t m = 0; m < mer_; m++) {
+      size_t shag_i = temp % (steps_ + 1);
+      temp /= (steps_ + 1);
+      param[m] = a_[m] + h_[m] * static_cast<double>(shag_i);
+      if (shag_i == 0 || shag_i == steps_) {
+        continue;
+      }
+      weight *= (2.0 + static_cast<double>(shag_i % 2) * 2);
+    }
+
+    local_res += weight * f_(param);
+  }
+  return local_res;
+}
+
+bool filateva_e_simpson_stl::Simpson::RunImpl() {
+  h_.resize(mer_);
+  for (size_t i = 0; i < mer_; i++) {
+    h_[i] = static_cast<double>(b_[i] - a_[i]) / static_cast<double>(steps_);
+  }
+
+  const int num_threads = ppc::util::GetPPCNumThreads();
+  std::vector<std::thread> threads(num_threads);
+  std::vector<double> local_res(num_threads, 0.0);
+  res_ = 0.0;
+
+  unsigned long del = (unsigned long)std::pow(steps_ + 1, mer_) / num_threads;
+  unsigned long ost = (unsigned long)std::pow(steps_ + 1, mer_) % num_threads;
+  for (int i = 0; i < num_threads; i++) {
+    threads[i] = std::thread([&, i]() { local_res[i] = IntegralFunc(ost + (del * i), ost + (del * (i + 1))); });
+  }
+  res_ += IntegralFunc(0, ost);
+  for (int i = 0; i < num_threads; i++) {
+    threads[i].join();
+    res_ += local_res[i];
+  }
+
+  for (size_t i = 0; i < mer_; i++) {
+    res_ *= (h_[i] / 3.0);
+  }
+  return true;
+}
+\end{lstlisting}
+\newpage
+
+\subsection{MPI + OpenMP реализация (ALL) - RunImpl}
+\begin{lstlisting}[language=C++]
+bool filatev_v_foks_all::Focks::RunImpl() {
+  boost::mpi::broadcast(world_, size_block_, 0);
+  boost::mpi::broadcast(world_, size_, 0);
+  if (world_.rank() != 0) {
+    matrix_a_.resize(size_ * size_);
+    matrix_b_.resize(size_ * size_);
+  }
+  boost::mpi::broadcast(world_, matrix_a_, 0);
+  boost::mpi::broadcast(world_, matrix_b_, 0);
+
+  size_t grid_size = size_ / size_block_;
+
+  matrix_c_.assign(size_ * size_, 0);
+
+  size_t total_steps = grid_size * grid_size * grid_size;
+  size_t steps_per_process = total_steps / world_.size();
+  size_t remainder = total_steps % world_.size();
+
+  size_t start_step = (world_.rank() * steps_per_process) + std::min<size_t>(world_.rank(), remainder);
+  size_t end_step = start_step + steps_per_process + (static_cast<size_t>(world_.rank()) < remainder ? 1 : 0);
+
+  size_t num_threads = ppc::util::GetPPCNumThreads();
+  std::mutex mtx;
+
+  if (end_step - start_step >= num_threads) {
+    std::vector<std::thread> threads(num_threads);
+    size_t steps_per_thread = (end_step - start_step) / num_threads;
+
+    for (size_t t = 0; t < num_threads; ++t) {
+      size_t thread_start = start_step + (t * steps_per_thread);
+      size_t thread_end = (t == num_threads - 1) ? end_step : thread_start + steps_per_thread;
+      threads[t] = std::thread(&Focks::Worker, this, thread_start, thread_end, grid_size, std::ref(mtx));
+    }
+
+    for (auto &thread : threads) {
+      thread.join();
+    }
+  } else {
+    Worker(start_step, end_step, grid_size, mtx);
+  }
+
+  if (world_.rank() == 0) {
+    std::vector<double> temp_matrix(size_ * size_);
+    for (int src = 1; src < world_.size(); ++src) {
+      world_.recv(src, 2, temp_matrix);
+      for (size_t i = 0; i < size_ * size_; ++i) {
+        matrix_c_[i] += temp_matrix[i];
+      }
+    }
+  } else {
+    world_.send(0, 2, matrix_c_);
+  }
+
+  world_.barrier();
+
+  return true;
+}
+\end{lstlisting}
+
+\end{document}
