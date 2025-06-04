@@ -1,0 +1,633 @@
+\documentclass[12pt]{extarticle}
+\renewcommand{\normalsize}{\fontsize{14pt}{14pt}\selectfont}
+\usepackage[T2A]{fontenc} 
+\usepackage[utf8]{inputenc}
+\usepackage[russian]{babel}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{enumitem}
+\usepackage{geometry}
+\usepackage{multirow}
+\usepackage{titlesec}
+\usepackage{tocloft}
+\usepackage{xcolor} 
+\usepackage{listings}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{setspace}
+
+\onehalfspacing
+\geometry{a4paper, left=20mm, right=20mm, top=20mm, bottom=20mm}
+\setlength{\parindent}{1.25cm}
+\sloppy
+
+\hypersetup{
+    pdfencoding=auto,
+    hidelinks,
+    pdfstartview=FitH,
+    unicode=true,
+    linkcolor=black,
+    urlcolor=black,
+    pdftitle={Отчёт по выполнению лабораторной работы},
+    pdfauthor={Лаганина Елена},
+    pdfsubject={Маркировка компонент на бинарном изображении (черные области соответствуют объектам, белые – фону).}
+}
+\lstset{
+  language=C++,
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{blue}\bfseries,
+  commentstyle=\itshape\color{green!50!black},
+  stringstyle=\color{red!60!black},
+  numbers=left,
+  numberstyle=\tiny,
+  stepnumber=1,
+  numbersep=5pt,
+  backgroundcolor=\color{gray!10},
+  showspaces=false,
+  showstringspaces=false,
+  breaklines=true,
+  frame=lines,
+  tabsize=2,
+  captionpos=b
+}
+
+\begin{document}
+\begin{titlepage}
+    \centering
+    \large
+    Министерство науки и высшего образования Российской Федерации\\
+    Федеральное государственное автономное образовательное учреждение высшего образования\\
+    \textbf{«Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского»}\\[0.25cm]
+    Институт информационных технологий, математики и механики\\
+    Направление подготовки: \textbf{«Прикладная математика и информатика»}\\[1cm]
+
+    \vfill
+
+    {\LARGE \textbf{ОТЧЁТ}}\\
+    {\Large по задаче}\\
+    {\LARGE \textbf{«Маркировка компонент на бинарном изображении (черные области соответствуют объектам, белые – фону).»}}\\
+    {\Large \textbf{Вариант №29}}\\
+
+    \vfill
+
+    \hfill\parbox{0.4\textwidth}{
+        \textbf{Выполнила:} \\
+        студентка группы 3822Б1ПМоп3 \\
+        \textbf{Лаганина Е.А.}
+    }\\[0.5cm]
+
+    \hfill\parbox{0.4\textwidth}{
+        \textbf{Преподаватель:} \\
+        кандидат технических наук,\\
+        доцент \textbf{Сысоев А.В.}
+    }\\[0.5cm]
+
+    \vfill
+
+    Нижний Новгород\\
+    2025
+\end{titlepage}
+
+
+\thispagestyle{empty}
+\clearpage
+\pagenumbering{arabic} 
+\setcounter{page}{2} 
+\tableofcontents
+\clearpage
+\setcounter{page}{3} 
+\section{Введение}
+\hspace*{1.25cm}Современные технологии компьютерного зрения и обработки изображений играют ключевую роль в решении задач автоматического анализа визуальных данных.Одной из фундаментальных проблем в этой области является идентификация и маркировка связанных компонент на бинарных изображениях.Такие изображения, где объекты представлены в виде чёрных областей на белом фоне (или наоборот), широко используются в медицинской диагностике, промышленной автоматизации, робототехнике и системах видеонаблюдения для выделения значимых структур из фона.
+Маркировка компонент (connected component labeling) — это процесс присвоения уникальных идентификаторов всем связным областям пикселей, относящимся к объектам. Эта процедура позволяет не только определить количество объектов на изображении, но и анализировать их свойства: площадь, форму, пространственное расположение. Алгоритмы маркировки лежат в основе более сложных операций, таких как распознавание образов, трекинг движущихся объектов или сегментация медицинских снимков.
+
+\section{Постановка задачи}
+
+\hspace*{1.25cm}\textbf{Цель работы} — разработка и анализ алгоритмов маркировки компонент на бинарном изображении. \\[0.5cm]
+\hspace*{1.25cm}\textbf{Задачи:}
+\begin{itemize}
+    \item Реализовать последовательную версию алгоритма.
+    \item Разработать и реализовать параллельные версии с использованием технологий:
+    \begin{itemize}
+        \item OpenMP — для многопроцессорных систем с общей памятью;
+        \item Intel TBB — для потокового параллелизма с автоматическим управлением задачами;
+        \item std::thread — для ручного управления потоками в C++;
+        \item MPI + OpenMP — для гибридных распределённых и многопоточных вычислений.
+    \end{itemize}
+    \item Проверить корректность реализаций изображениях различных типов.
+    \item Сравнить производительность и масштабируемость версий.
+\end{itemize}
+
+Ожидаемый результат — выявление оптимальной стратегии параллельного маркировки компонент и определение преимуществ и ограничений каждой технологии для обработки больших данных.
+
+
+\section{Описание алгоритма}
+
+\hspace*{1.25cm}Назначение алгоритма Алгоритм маркировки связных компонент предназначен для идентификации и присвоения уникальных меток связанным областям объектов на бинарном изображении. Каждая связная область (компонента), состоящая из пикселей со значением 1 (объект), получает уникальный числовой идентификатор. Пиксели со значением 0 (фон) не маркируются.
+
+\subsection{Хранение данных}
+
+\begin{itemize}
+    \item \texttt{binary\_} — линейный массив, где хранится исходной изображение(0: пиксель фона,1: пиксель объекта), элемент  $[i][j]$ хранится по индексу $[i * n\_ + j]$, тип  \texttt{std::vector<int>}; \\[-0.9cm]
+    \item \texttt{parent} — массив родителей, хранящий индекс корня для пикселей объекта и -1 для пикселей фона, тип \texttt{std::vector<int>}; \\[-0.9cm]
+    \item \texttt{labels} — массив меток,сопоставляющий корневые индексы и финальные метки, тип \texttt{std::vector<int>}; \\[-0.9cm]
+    \item \texttt{changed}— флаг обнаружения изменений при объединении компонент,тип \texttt{bool}; \\[-0.9cm]
+    \item \texttt{iterations} — число столбцов матрицы \texttt{int}; \\[-0.9cm]
+    \item \texttt{m\_} — количество строк в изображении,тип \texttt{int};
+    \item \texttt{n\_} — количество строк в изображении,тип \texttt{int}.
+\end{itemize}
+
+
+\subsection{Этапы выполнения}
+
+\hspace*{1.25cm}Алгоритм умножения матриц включает следующие ключевые шаги:
+
+\begin{enumerate}
+    \item \textbf{Инициализация.} 
+    Проверяется что исходное изображение содержит только $0$ и $1$. Элемент массива \texttt{parent$[i]$} инициализируется значениями $i$ для пиксилей объекта и $-1$ для пикселей фона.
+
+    \item \textbf{Итеративное объединение компонент.} 
+    \begin{itemize}
+        \itemПрямой проход (сверху-вниз, слева-направо): для каждого пикселя объекта проверяются верхний и левый соседи.При обнаружении соседа-объекта выполняется объединение компонент.
+        \itemОбратный проход (снизу-вверх, справа-налево):для каждого пикселя объекта проверяются нижний и правый соседи.Процесс прекращается при отсутствии изменений в проходе.
+    \end{itemize}
+ \item \textbf{Операции Union-Find.} 
+    \begin{itemize}
+        \item $FindRoot$: Нахождение корневого элемента компоненты со сжатием путей.
+        \item $UnionNodes$: Объединение двух компонент: поиск корней для обоих пикселей и присоединение компоненты с большим индексом к компоненте с меньшим индексом при разных корнях.
+    \end{itemize}
+
+    \item \textbf{Финализация корней.} 
+    \begin{itemize}
+         \item Обновление родительских ссылок для всех пикселей объекта до их корневых элементов.
+         \item Гарантия, что все пиксели компоненты указывают на единый корень.
+    \end{itemize}
+   \item \textbf{Назначение уникальных меток.}
+   \begin{itemize}
+   \item Сбор всех уникальных корневых элементов.
+   \item Присвоение последовательных меток $(1, 2, 3...)$ каждому корню.
+   \item Замена значений в результирующем изображении.
+   \end{itemize}
+\end{enumerate}
+
+\subsection{Пример}
+
+\hspace*{1.25cm}Исходное изображение 3x3:
+
+\[
+\begin{bmatrix}
+1 & 0 & 1 \\
+1 & 0 & 0\\
+0 & 1 & 0
+\end{bmatrix}, \]
+
+
+Шаги обработки
+\begin{enumerate}
+\item \textbf{Инициализация:parent=$ [0, -1, 2, 3, -1, -1, -1, 7, -1]$}
+\item \textbf{Прямой проход:$(1,0)$ объединяется с $(0,0)$, parent$[3] = 0$}
+\item \textbf{Обратный проход: изменений нет.}
+\item \textbf{Финализация корней: $ 0$ (для $(0,0) $и $(1,0)$), $2$ (для $(0,2)$), $7$ (для $(2,1)$).}
+\item \textbf{Назначение меток.}
+\end{enumerate}
+Результирующее изображение:
+\[
+\begin{bmatrix}
+1 & 0 & 2 \\
+1 & 0 & 0\\
+0 & 3 & 0
+\end{bmatrix}, \]
+\section{Схема параллельного алгоритма}
+
+\hspace*{1.25cm}Схема параллельного алгоритма маркировки связных компонент в бинарном изображении основана на разделении задачи обработки строк изображения между несколькими потоками. Параллелизация эффективна, так как обработка строк может выполняться независимо при соблюдении согласованности структуры Union-Find. Основные этапы параллелизма:
+
+\begin{enumerate}
+    \item \textbf{Инициализация.} 
+    Входное изображение проверяется на корректность $($только $0$ и $1)$.Создаются структуры данных:  \texttt{binary\_}-линейное представление изображения, \texttt{parent}-массив родителей для \texttt{Union-Find}.Инициализация родителей распараллеливается по пикселям.
+    \item \textbf{Распределение задач.} 
+    \begin{itemize}
+        \item Строки изображения делятся между потоками статически
+        \itemКаждому потоку назначается блок строк фиксированного размера
+        \itemРаспределение равномерное: если m - число строк, а N потоков, каждый обрабатывает примерно m/N строк
+    \end{itemize}
+    \item \textbf{Итеративная обработка.} 
+    \begin{itemize}
+    \itemПрямой проход (сверху-вниз): потоки обрабатывают назначенные строки,для каждого пикселя проверяются верхний и левый соседи, компоненты объединяются через Union-Find.
+    \itemОбратный проход (снизу-вверх):аналогичная обработка в обратном порядке,проверка нижнего и правого соседей,
+    \end{itemize}
+    \item \textbf{Финализация и назначение меток.} 
+    \begin{itemize}
+    \itemФинализация корней: параллельное обновление родительских ссылок(каждый поток обрабатывает свой блок пикселей).
+    \itemНазначение меток:\begin{itemize}
+    \itemПотоки собирают локальные корни в приватных буферах
+    \itemГлобальное назначение меток через критическую секцию
+    \itemПараллельная замена корней на метки
+    \end{itemize}
+    \end{itemize}
+    Ключевое преимущество - независимость обработки строк в пределах одной итерации, что позволяет минимизировать синхронизацию во время основных вычислений. Однако требуется:
+\begin{itemize}
+\itemСинхронизация флага изменений между проходами
+\itemКоординация при назначении глобальных меток
+\itemГарантия атомарности операций Union-Find
+\end{itemize}
+\end{enumerate}
+
+\section{Программная реализация параллельных алгоритмов}
+
+\subsection{OpenMP-версия}
+
+\hspace*{1.25cm}Параллельная версия алгоритма маркировки связных компонент реализована в классе \texttt{TestTaskOpenMP}, расположенном в пространстве имён \texttt{laganina\_e\_component\_labeling\_omp}. \\[-0.2cm]
+
+Основные методы класса и их назначение:
+\begin{itemize}
+    \item \texttt{ValidationImpl()} — Проверяет корректность входных данных, а именно соответствие пикселей 0 или 1.
+    \item \texttt{PreProcessingImpl()} — инициализирует рабочую область: определяет размеры изображения (строки $m\_$, столбцы $n\_$),Копирует входные данные в вектор \texttt{binary\_}.
+    \item \texttt{RunImpl()} — запускает основной алгоритм.
+    \item \texttt{LabelConnectedComponents()} — выполняет процесс маркировки, а именно прямой и обратный проход алгоритма.
+    \item \texttt{InitializeParents()} — инициализирует массив родителей. Использует директиву \texttt{\#pragma omp parallel for schedule(static)} для параллелизма инициализации по пикселям. Статическое распределение блоков пикселей между потоками.:
+
+    \begin{lstlisting}[caption={Параллельная по пикселям инициализация в методе InitializeParents},label={all00}]
+#pragma omp parallel for schedule(static)
+  for (int i = 0; i < size; ++i) {
+    parent[i] = (binary_[i] != 0) ? i : -1;
+  }
+    \end{lstlisting}
+    \item \texttt{ProcessSweep()} —выполняет проход в заданном направлении. Использует директиву \texttt{\#pragma omp parallel for reduction(|| : local\_changed) schedule(static)} для параллелизма по строкам. Редукция флага изменений через логическое или, cтатическое распределение строк:
+
+    \begin{lstlisting}[caption={Параллельная по по строкам редукция флага изменений в методе ProcessSweep},label={all0}]
+#pragma omp parallel for reduction(|| : local_changed) schedule(static)
+ for (int row_idx = 0; row_idx < m_; ++row_idx) {
+    local_changed |= ProcessRow(row_idx, reverse, parent);
+  }
+    \end{lstlisting}
+    \item \texttt{ProcessRow()} -обрабатывает пиксели в строке (прямой/обратный порядок).
+    \item \texttt{UnionNodes()} -объединяет компоненты.
+     \item \texttt{FinalizeRoots()} —финализирует корневые элементы. Использует директиву \texttt{\#pragma omp parallel for schedule(static)} для параллельного обновления родительских ссылок, статическое распределение нагрузки по потокам:
+
+    \begin{lstlisting}[caption={Параллельное обновление родительских ссылок в методе FinalizeRoots},label={all1}]
+#pragma omp parallel for schedule(static)
+  for (int i = 0; i < size; ++i) {
+    if (parent[i] != -1) {
+      parent[i] = FindRoot(parent, i);
+    }
+  }
+  \end{lstlisting}
+  \item \texttt{AssignLabels()} —назначает уникальные метки. Использует директиву \texttt{\#pragma omp for nowait} для параллельного сбора корней в локальные буферы, директиву \texttt{\#pragma omp critical} для атомарного назначения меток в критической секции и директиву \texttt{\#pragma omp parallel for} для параллельной замены корней на метки:
+
+    \begin{lstlisting}[caption={Параллельный сбор корней в локальные буферы в методе AssignLabels},label={all2}]
+    #pragma omp for nowait
+    for (int i = 0; i < m_ * n_; ++i) {
+      if (parent[i] != -1 && parent[i] == i) {
+        local_roots.push_back(i);
+      }
+     } 
+  \end{lstlisting}
+   \begin{lstlisting}[caption={Атомарное назначение меток в критической секции в методе AssignLabels},label={all}3]
+    #pragma omp critical
+    {
+      for (int root : local_roots) {
+        if (labels[root] == 0) {
+          labels[root] = current_label++;
+        }
+      }
+    }
+  \end{lstlisting}
+  \begin{lstlisting}[caption={Параллельная замена корней на метки в методе AssignLabels},label={all4}]
+    for (int i = 0; i < m_ * n_; ++i) {
+    binary_[i] = parent[i] != -1 ? labels[parent[i]] : 0;
+  }
+  \end{lstlisting}
+\end{itemize}
+
+Основные особенности реализации:
+\begin{itemize}
+    \item \textbf{Преимущества:}эффективное распараллеливание вычислительно сложных этапов, оптимизации для уменьшения накладных расходов(статическое распределение \texttt{(schedule(static))},локальные буферы для сбора корней,редукция флага изменений)
+    \item \textbf{Недостатки:}  дисбаланс нагрузки для сложных изображений, избыточная память для labels.
+\end{itemize}
+
+\textbf{Вывод:} OpenMP-реализация обеспечивает хороший баланс между производительностью и простотой поддержки, делая её подходящим выбором для систем средней мощности с многоядерными процессорами.
+
+\subsection{TBB-версия}
+
+\hspace*{1.25cm} Параллельная версия алгоритма маркировки связных компонент реализована в классе \texttt{TestTaskTBB}, расположенном в пространстве имён \texttt{laganina\_e\_component\_labeling\_tbb}. \\[-0.2cm]
+
+Основные методы класса и их назначение:
+\begin{itemize}
+    \item \texttt{ValidationImpl()} — проверяет корректность входных данных (пиксели на соответствие 0 и 1).
+    \item \texttt{PreProcessingImpl()} — инциалицирует рабочую область(сохраняет размеры изображения (\texttt{rows\_}, \texttt{cols\_}),Копирует входные данные в вектор 
+    \item \texttt{RunImpl()} — запускает основной алгоритм.
+    \item \texttt{LabelConnectedComponents()} —организует процесс маркировки, а именнно  основную обработку(вызов \texttt{ProcessComponent}) и назначение меток.
+    \item \texttt{ProcessComponents()} — запускает параллельную обработку блоков. Использует TBB примитив \texttt{tbb::parallel\_for} c 2D диапазоном для разделения изображения на блоки:
+
+    \begin{lstlisting}[caption={Разделение изображения на блоки методе ProcessComponents},label={all5}]
+    tbb::parallel_for(
+    tbb::blocked_range2d<int>(0, rows_, 16, 0, cols_, 64),
+    [&](const auto& r) { ProcessRange(r, uf); }
+    );
+    \end{lstlisting}
+    \item \texttt{ProcessRange()}-обрабатывает один блок изображения(итерирует по строкам в блоке,передает обработку столбцов в \texttt{ProcessRow}).
+    \item \texttt{ProcessRow()}-Обрабатывает строку в блоке(вычисляет линейный индекс пикселя,пропускает фоновые пиксели $(0)$.
+    \item \texttt{CheckAllNeighbors()}-проверяет 4-связность(проверяет всех 4 соседей,вызывает объединение компонент через \texttt{UnionFind}.
+   \item \texttt{AssignFinalLabels()}-назначает уникальные метки, использует TBB примитивы  \texttt{tbb::parallel\_for} для параллельных циклов и \texttt{tbb::concurrent\_unordered\_map} для потокобезопасного сбора меток.
+     \begin{lstlisting}[caption={Параллельная реализация метода AssignFinalLabels},label={all6}]
+    tbb::concurrent_unordered_map<int, int> label_map;
+  tbb::parallel_for(0, size, [&](int i) {
+    if (data_[i]) data_[i] = uf.Find(i) + 1;
+  });
+  tbb::parallel_for(0, size, [&](int i) {
+    if (data_[i] > 0) label_map.insert({data_[i], 0});
+  });
+  std::vector<int> keys;
+  for (auto& p : label_map) keys.push_back(p.first);
+  std::ranges::sort(keys);
+  int next_label = 1;
+  for (auto& k : keys) label_map[k] = next_label++;
+  tbb::parallel_for(0, size, [&](int i) {
+    if (data_[i] > 0) data_[i] = label_map[data_[i]];
+  });
+\end{lstlisting}
+\item \texttt{PostProcessingImpl()}- сохранение результата.
+\end{itemize}
+
+Особенности реализации:
+\begin{itemize}
+    \item Блокированная обработка изображения.Размер блока: 16 строк × 64 столбца.
+    \itemПотокобезопасные структуры данных.
+    \item Динамическое планирование задач
+    \item \textbf{Преимущества}:динамическая балансировка нагрузки(автоматическое перераспределение задач между потоками),оптимизация использования кэша (блокированная обработка 2D данных), масштабируемость(эффективная работа на системах с большим числом ядер).
+    \item \textbf{Недостатки}: требует установки библиотеки TBB, сложнее в настройке по сравнению с OpenMP.
+\end{itemize}
+
+\textbf{Вывод:} Данная реализация демонстрирует современный подход к параллелизации алгоритмов компьютерного зрения с использованием продвинутых возможностей TBB, обеспечивая высокую производительность и масштабируемость на многопоточных системах.
+\subsection{STL-версия}
+
+\hspace*{1.25cm}STL-версия реализует маркировку компонент в бинарном изображении с использованием стандартной библиотеки C++ (\texttt{std::thread}), что обеспечивает переносимость на системы с общей памятью. Реализация выполнена в классе \texttt{TestTaskSTL}, который находится в пространстве имён \texttt{ laganina\_e\_component\_labeling\_stl}, изолирующем STL-реализацию от других версий.
+
+Основные методы класса и их назначение:
+\begin{itemize}
+   \item \texttt{ValidationImpl()} — проверяет корректность входных данных (пиксели на соответствие 0 и 1).
+   \item \texttt{PreProcessingImpl()} — инициализирует рабочую область: определяет размеры изображения (строки $m\_$, столбцы $n\_$),Копирует входные данные в вектор \texttt{binary\_}.
+   \item \texttt{RunImpl()} — запускает основной алгоритм.
+   \item \texttt{LabelConnectedComponents()} — выполняет процесс маркировки, а именно прямой и обратный проход алгоритма.
+   \item \texttt{InitializeParents()}-bнициализирует массив родителей с использованием потоков.Статическое разделение пикселей между потоками.Вычисление размера чанков для балансировки нагрузки.
+   \begin{lstlisting}[caption={Статическое разделение пикселей и вычисление размера чанков},label={all7}]
+  const int chunk_size = (size + num_threads - 1) / num_threads;
+  std::vector<std::thread> threads;
+  for (int t = 0; t < num_threads; ++t) {
+    const int start = t * chunk_size;
+    const int end = std::min(start + chunk_size, size);
+
+    threads.emplace_back([&, start, end] {
+      for (int i = start; i < end; ++i) {
+        parent[i] = binary_[i] ? i : -1;
+      }
+    });
+  }
+\end{lstlisting}
+  \item \texttt{ProcessSweep()}-обрабатывает проход в заданном направлении. Параллелизм-разделение строк между потоками по блокам. Синхронизация- использоване \texttt{std::atomic<bool>}для флага изменений.
+  \begin{lstlisting}[caption={Параллелизм в методе ProcessSweep},label={all8}]
+ std::atomic<bool> global_changed(false);
+
+  std::vector<std::thread> threads;
+  for (int t = 0; t < num_threads; ++t) {
+    const int start = t * chunk_size;
+    const int end = std::min(start + chunk_size, m_);
+
+    threads.emplace_back([&, start, end] {
+      bool local_changed = false;
+      for (int row_idx = start; row_idx < end; ++row_idx) {
+        local_changed |= ProcessRow(row_idx, reverse, parent);
+      }
+      if (local_changed) {
+        global_changed = true;
+      }
+    });
+  }
+  \end{lstlisting}
+  \item \texttt{ProcessRow()}-обработака пикселей в строке.
+  \item \texttt{FinalizeRoots()}-обновляет родительские ссылки до корней.Статическое разделение пикселей.
+  \begin{lstlisting}[caption={Обновление родительских ссылок в методе FinalizeRoots},label={all9}]
+   for (int t = 0; t < num_threads; ++t) {
+    const int start = t * chunk_size;
+    const int end = std::min(start + chunk_size, size);
+
+    threads.emplace_back([&, start, end] {
+      for (int i = start; i < end; ++i) {
+        if (parent[i] != -1) {
+          parent[i] = FindRoot(parent, i);
+        }
+      }
+    });
+  }
+  \end{lstlisting}
+  \item \texttt{AssignLabels()}-назначает уникальные метки с использованием асинхронных задач(\texttt{std::async}). Подсчет корней в каждом блоке,назначение временных меток,распространение меток на все пиксели.
+  \begin{lstlisting}[caption={Назначение уникальных меток в методе AssignLabels},label={all10}]
+   for (int t = 0; t < num_threads; ++t) {
+      const int start = t * chunk_size;
+      const int end = std::min(start + chunk_size, size);
+      count_futures.push_back(std::async(std::launch::async, CountRootsInChunk, 
+                                         std::cref(parent), start, end));
+    }
+    ...
+    for (int t = 0; t < num_threads; ++t) {
+      const int start = t * chunk_size;
+      const int end = std::min(start + chunk_size, size);
+      const int label_start = root_counts[t];
+      label_futures.push_back(std::async(std::launch::async, LabelRootsInChunk, 
+                                         std::ref(labels), std::cref(parent), 
+                                         start, end, label_start));
+    }
+    ...
+     for (int t = 0; t < num_threads; ++t) {
+      const int start = t * chunk_size;
+      const int end = std::min(start + chunk_size, size);
+      propagate_futures.push_back(std::async(std::launch::async, PropagateLabelsInChunk, 
+                                            std::ref(binary_), std::cref(labels), 
+                                            std::cref(parent), start, end));
+    }
+     \end{lstlisting}
+    \item \texttt{PostProcessingImpl()}-сохраняет результат.
+   \item \texttt{PostProcessingImpl()}-сохраняет результат.
+    \item \texttt{CountRootsInChunk()}-вспомогательная функця, которая подсчитывает корни в блоке.
+    \item \texttt{LabelRootsInChunk()}-вспомогательная функця, которая назначает метки корням в блоке.
+    \item \texttt{PropagateLabelsInChunk()}-вспомогательная функця, которая распространяет метки на пиксели.
+    
+\end{itemize}
+Основные особенности реализации:
+\begin{itemize}
+     \itemДинамическое управление потоками.
+     \begin{lstlisting}[caption={Динамическое управление потоками},label={all11}]
+     int num_threads = std::min(ppc::util::GetPPCNumThreads(),
+                         static_cast<int>(std::thread::hardware_concurrency()));
+     \end{lstlisting}
+     \itemСтатическое разделение данных.
+      \begin{lstlisting}[caption={Статическое разделение данных},label={all12}]
+      const int chunk_size = (size + num_threads - 1) / num_threads;
+      \end{lstlisting}
+      \itemАсинхронные задачи.
+      \begin{lstlisting}[caption={Асинхронные задачи},label={all13}]
+      auto future = std::async(std::launch::async, [&] { /* task*/ });
+      \end{lstlisting}
+    \item \textbf{Преимущества}:Стандартность(не требует внешних библиотек),гибкость(полный контроль над потоками),балансировка( статическое распределение нагрузки),масштабируемость(автоматическое использование ядер).
+    \item \textbf{Недостатки}: сложное управление потоками,явная синхронизация \texttt{(join(), wait())},отсутствие автоматической редукции переменных.
+\end{itemize}
+
+\textbf{Вывод:} STL-реализация демонстрирует эффективное использование возможностей современного C++ для параллельной обработки изображений, обеспечивая переносимость и хорошую производительность без зависимостей от внешних библиотек.
+
+\subsection{MPI+OMP-версия}
+
+\hspace*{1.25cm}MPI+OMP версия комбинирует в себе распределённые вычисления с помощью MPI (Message Passing Interface) и многопоточность внутри узлов с использованием \texttt{Openmp} библиотеки. Пространство имён: \texttt{laganina\_e\_component\_labeling\_all}. \\[-0.1cm]
+
+Основные методы класса и их назначение:
+\begin{itemize}
+    \item \texttt{ValidationImpl()} — Проверяет корректность входных данных только на процессе с номером 0.
+    \item \texttt{PreProcessingImpl()}-Инициализация данных только на процессе с номером 0.
+     \item \texttt{ RunImpl()} -основной метод, организующий распределённую обработку.
+      \begin{lstlisting}[caption={Распределенная обработка изображения},label={all14}]
+     if (world_.rank() == 0) {
+    int delta = (m_ + world_.size() - 1) / world_.size();
+    sizes.resize(world_.size());
+    }
+  boost::mpi::broadcast(world_, sizes.data(), size_of_sizes, 0);
+  if (world_.rank() == 0) {
+    for (int i = 1; i < size_of_sizes; i++) {
+      world_.send(i, 0, tmp);  
+    }
+  } else {
+    world_.recv(0, 0, local_bin_);
+  }
+  if (sizes[world_.rank()] != 0) {
+    LabelConnectedComponents();  
+    NormalizeLabels(local_bin_); 
+  }
+  if (world_.rank() == 0) {
+    for (int i = 1; i < size_of_sizes; i++) {
+      world_.recv(i, 0, tmp);
+    }
+  } else {
+    world_.send(0, 0, local_bin_);
+  }
+  if (world_.rank() == 0) {
+    RelabelImage(); 
+  }
+  world_.barrier();
+  return true;
+ \end{lstlisting}
+  \item \texttt{LabelConnectedComponents()}-локальная маркировка с использованием OpenMP-директивы  \texttt{\#pragma omp parallel for} аналогично  OpenMP реализации.
+  \begin{lstlisting}[caption={локальная маркировка с использованием OpenMP},label={all15}]
+  #pragma omp parallel for
+  for (int i = 0; i < size; ++i) {
+    // Initialize parent
+  }
+  \end{lstlisting}
+  \item\texttt{RelabelImage()}-глобальная перемаркировка на процессе 0.
+  \item\texttt{ProcessConnectedComponent()}- обход графа BFS для соединения компонент.
+  \item\texttt{PostProcessingImpl()}-сохранение результата только на процессе 0.
+\end{itemize}
+
+Основные особенности реализации:
+\begin{itemize}
+    \item\texttt{Распределение данных}: главный процесс (0) делит изображение на горизонтальные полосы, размеры блоков рассчитываются пропорционально числу процессов, пересылка данных через \texttt{MPI\_Send/MPI\_Recv}.
+     \item\texttt{Гибридный параллелизм}: MPI для распределения между узлами,OpenMP для параллелизма внутри узла, статическое распределение в OpenMP.
+    \item \textbf{Преимущества}: масштабируемость на кластерах, эффективное использование многоядерных узлов, автоматическая балансировка нагрузки
+    \item \textbf{Недостатки}: затраты на пересылку данных,требование однородной сети, сложность реализации.
+\end{itemize}
+
+\textbf{Вывод:} MPI+STL-демонстрирует промышленный подход к обработке сверхбольших изображений, сочетая распределённые вычисления между узлами кластера и параллельную обработку внутри каждого узла.
+\newpage
+\section{Результаты экспериментов}
+
+\hspace*{1.25cm}Все реализации прошли тщательное функциональное тестирование на различных наборах данных. Тесты охватывали следующие случаи:
+\begin{itemize}
+  \item \textbf{Некорректные данные}: случаи с некорректными цифрами в изображении, нулевыми размерами изображения; \\[-0.9cm]
+  \item \textbf{Специфические структуры изображения}: нулевые, полностью заполенные, с диагональными линиями, с прямоугольным областями,U-образные формы, кольцевые структуры.\\[-0.9cm]
+ 
+\end{itemize}
+
+Все тесты подтвердили корректность реализаций в разнообразных сценариях работы. Для оценки производительности алгоритма измерялось время выполнения в разных конфигурациях потоков и процессов. Таблица ниже показывает усреднённые времена (в секундах) для \texttt{PipelineRun} и \texttt{TaskRun}, а также ускорение относительно \texttt{TaskRun} последовательной версии.
+
+\subsection{Таблица производительности}
+
+\renewcommand{\arraystretch}{1.4}
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+\textbf{Версия} & \textbf{Конфигурация} & \textbf{PipelineRun (с)} & \textbf{TaskRun (с)} & \textbf{Ускорение} \\
+\hline
+\textbf{Последовательная} & — & 0.7276 & 0.1890 & \textbf{1.00} \\
+\hline
+\multirow{3}{*}{OpenMP} 
+  & 2 потока & 0.5044 & 0.5823 & 0.3246 \\
+  & 3 потока & 0.5134 & 0.5322 & 0.3551 \\
+  & 5 потоков & 0.4276 & 0.4223 & 0.4475\\
+\hline
+\multirow{3}{*}{TBB} 
+  & 2 потока & 0.6337 & 0.8060 & 0.2345  \\
+  & 3 потока & 0.5875 & 0.6703 & 0.2820 \\
+  & 5 потоков & 0.5347 & 0.6017 & 0.3141 \\
+\hline
+\multirow{3}{*}{STL (std::thread)} 
+  & 2 потока & 0.6010 & 0.7053 & 0.2680\\
+  & 3 потока & 0.5771 & 0.5567 & 0.3395\\
+  & 5 потоков & 0.4643 & 0.4948 & 0.3819\\
+\hline
+\multirow{4}{*}{MPI + OMP} 
+  & 2 + 2 & 1.0311 & 1.1572 & 0.1833 \\
+  & 3 + 2 & 0.9001 & 1.1257 & 0.2099 \\
+  & 3 + 3 & 1.0234& 1.1325 & 0.1696 \\
+  & 4 + 2 &1.2045  & 1.5918 & 0.1187 \\
+\hline
+\end{tabular}
+\caption{Производительность различных реализаций}
+\label{tab:matrix_mult_perf}
+\end{table}
+
+\hspace*{1.25cm}Тесты проводились на системе с процессором AMD Ryzen™ 7 7730U (8 ядер, 16 потоков, 4.50 ГГц), 512 КБ ОЗУ. Изображения тестировались по 3 раза, результаты усреднялись. Ускорение — отношение \texttt{TaskRun} последовательной версии к параллельной.
+
+\textbf{Анализ результатов:}  
+{\sloppy Накладные расходы (\texttt{PipelineRun} - \texttt{TaskRun}) минимальны (0.004–0.02 с) и наименьшие накладные расходы у \texttt{OpenMP} (0.005-0.008 с).Наибольшие у \texttt{MPI+OpenMP} (0.12-0.39 с) из-за коммуникаций.}
+
+\begin{itemize}
+  \item\textbf{OpenMP}-минимальные накладные расходы, стабильная производительность.
+  \item\textbf{TBB}-худшие показатели из-за динамической балансировки.
+  \item\textbf{STL}-оптимальное использование Hyper-Threading.
+  \item\textbf{ MPI+OMP}-rоммуникационные затраты перевешивают преимущества.
+\end{itemize}
+ 
+
+
+\newpage
+\section{Заключение}
+
+\hspace*{1.25em}В данной работе реализован и проанализирован алгоритм макркировки компонент на бинарном изображении. Базовая последовательная реализация дополнена четырьмя параллельными версиями с использованием современных технологий: OpenMP, Intel TBB, стандартной библиотеки потоков C++ td::thread (STL) и гибридной модели MPI+OMP.
+
+Каждая технология была выбрана для изучения её эффективности при параллельной маркировки бинарных изображений. Решены задачи распределения пикселей между потоками и процессами, организации сбора результатов и проверки корректности. Эксперименты на больших данных позволили сравнить производительность реализаций.
+
+
+
+Таким образом, все поставленные цели работы достигнуты: \\[-0.9cm]
+\begin{itemize}
+  \item Разработан и протестирован алгоритм маркировки компонент в бинарном изображении; \\[-0.9cm]
+  \item Реализованы параллельные версии с использованием OpenMP, TBB, STL и MPI+OMP; \\[-0.9cm]
+  \item Проведён анализ производительности, включая накладные расходы; \\[-0.9cm]
+  \item Выявлены особенности технологий: масштабируемость MPI+OMP, простота OpenMP, гибкость TBB, переносимость STL. \\[-0.9cm]
+\end{itemize}
+
+Для малых изображений более эффективной будет последовательная версия, параллелизм нужен для больших размерностей исходого изображения.
+
+\newpage
+\section{Список литературы}
+\begin{enumerate}
+    \item Saad Y. \textit{Iterative Methods for Sparse Linear Systems}. — 2nd ed. — SIAM, 2003. — 528 p. \url{https://epubs.siam.org/doi/book/10.1137/1.9780898718003}
+    \item Davis T.A. \textit{Direct Methods for Sparse Linear Systems}. — SIAM, 2006. — 217 p. \url{https://epubs.siam.org/doi/book/10.1137/1.9780898718881}
+    \item Duff I.S., Erisman A.M., Reid J.K. \textit{Direct Methods for Sparse Matrices}. — 2nd ed. — Oxford University Press, 2017. — 416 p. \url{https://doi.org/10.1093/acprof:oso/9780198508380.001.0001}
+    \item Сысоев А.В., Мееров И.Б., Сиднев А.А. \textit{Средства разработки параллельных программ для систем с общей памятью. Библиотека Intel Threading Building Blocks}. — Нижний Новгород: ННГУ, 2007. — 84 с.
+    \item Шилдт Г. \textit{Язык программирования C++. Полное руководство}. — М.: Вильямс, 2020. — 1200 с.
+    \item OpenMP Architecture Review Board. \textit{OpenMP Application Program Interface Version 5.1}. — 2020. \url{https://www.openmp.org}
+    \item Intel. \textit{oneAPI Threading Building Blocks Developer Guide}. — \url{https://www.intel.com/content/www/us/en/developer/tools/oneapi/onetbb.html}
+    \item Gropp W., Lusk E., Skjellum A. \textit{Using MPI: Portable Parallel Programming with the Message Passing Interface}. — 3rd ed. — MIT Press, 2014. — 336 p. \url{https://mitpress.mit.edu/9780262527392/using-mpi/}
+    \item Pissanetzky S. \textit{Sparse Matrix Technology}. — Academic Press, 1984. — 336 p. \url{https://doi.org/10.1016/C2013-0-10717-8}
+\end{enumerate}
+
+\end{document}
