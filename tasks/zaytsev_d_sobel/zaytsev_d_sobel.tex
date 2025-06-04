@@ -1,0 +1,546 @@
+\documentclass[12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[russian]{babel}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{geometry}
+\usepackage{caption}
+\usepackage{float}
+\usepackage[hidelinks]{hyperref}
+\geometry{a4paper, margin=1in}
+
+\lstset{
+    basicstyle=\ttfamily\footnotesize,
+    breaklines=true,
+    numbers=left,
+    numberstyle=\tiny,
+    frame=single,
+    captionpos=b
+}
+
+\begin{document}
+
+\begin{titlepage}
+\begin{center}
+    \vspace*{1cm}
+
+    \textbf{\Large Отчет по работе «Выделение ребер на изображении с использованием оператора Собеля»}
+
+    \vspace{1.5cm}
+
+    \textbf{Зайцев Денис Яковлевич \\
+    Группа: ПР2}
+
+    \vfill
+
+    Учебное заведение: Нижегородский государственный университет им. Лобачевского \\
+    Преподаватель: Сысоев Александр Владимирович, доцент, кандидат технических наук
+
+    \vspace{0.8cm}
+
+    \today
+
+\end{center}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+\section*{Введение}
+
+В современных системах компьютерного зрения выделение границ (ребер) изображения является одной из базовых операций предобработки. Оператор Собеля обеспечивает приближённое вычисление градиента интенсивности по каждому пикселю, что позволяет находить области резкого изменения яркости. Целью данной работы является не только реализация классического алгоритма Собеля, но и сравнение производительности различных параллельных версий с помощью специализированных перфоманс-тестов (Perf).
+
+\vspace{0.5em}
+
+В отчёте последовательно приведены:
+\begin{itemize}
+    \item постановка задачи и описание алгоритма;
+    \item схема распараллеливания и описание всех реализованных версий;
+    \item результаты экспериментов, включая замеры с помощью Perf;
+    \item выводы и заключение;
+    \item список литературы и приложения с исходным кодом.
+\end{itemize}
+
+\section{Постановка задачи}
+
+Основная цель работы — разработать несколько реализаций оператора Собеля и сравнить их по производительности и корректности. Задача разбивается на следующие этапы:
+\begin{enumerate}
+    \item Исследовать математический аппарат оператора Собеля.
+    \item Реализовать \textbf{последовательную} версию алгоритма.
+    \item Реализовать \textbf{параллельные} версии:
+    \begin{itemize}
+        \item STL-потоки;
+        \item OpenMP;
+        \item Intel TBB;
+        \item Гибрид MPI + Intel TBB.
+    \end{itemize}
+    \item Разработать набор перфоманс-тестов (Perf) для замера времени работы PipelineRun и TaskRun.
+    \item Провести серию экспериментов на тестовом массиве пикселей размером $4500 \times 4500$.
+    \item Проверить корректность всех версий (с помощью MD5-хеша и прямого сравнения выходных данных).
+    \item Сравнить и проанализировать полученные результаты.
+\end{enumerate}
+
+\section{Описание алгоритма}
+
+Оператор Собеля вычисляет приблизительный градиент интенсивности в каждой точке изображения. Пусть исходное изображение задано матрицей $I(x,y)$, где $x\in[0..H-1],\,y\in[0..W-1]$ и значения пикселей лежат в диапазоне $[0,\,255]$. Для каждой внутренней точки $(x,y)$ определяются две компоненты градиента:
+\[
+G_x(x,y) = \sum_{i=-1}^{1} \sum_{j=-1}^{1} K_x[i+1,j+1]\;I(x+i,\,y+j),
+\]
+\[
+G_y(x,y) = \sum_{i=-1}^{1} \sum_{j=-1}^{1} K_y[i+1,j+1]\;I(x+i,\,y+j),
+\]
+где ядра Собеля заданы матрицами:
+\[
+K_x = 
+\begin{pmatrix}
+-1 & 0 & +1 \\
+-2 & 0 & +2 \\
+-1 & 0 & +1
+\end{pmatrix},\quad
+K_y = 
+\begin{pmatrix}
+-1 & -2 & -1 \\
+ 0 &  0 &  0 \\
++1 & +2 & +1
+\end{pmatrix}.
+\]
+Вычисляется модуль градиента
+\[
+M(x,y) = \sqrt{G_x(x,y)^2 + G_y(x,y)^2},
+\]
+а результирующее значение пикселя:
+\[
+I_{\text{out}}(x,y) \;=\; \min\bigl(\lfloor M(x,y)\rfloor,\,255\bigr).
+\]
+В данной работе точный расчёт через квадратный корень сохранён, без аппроксимации $|G_x| + |G_y|$. Граничные пиксели ($x=0$, $x=H-1$, $y=0$, $y=W-1$) при обработке игнорируются (в результате остаются без изменений).
+
+\section{Описание схемы параллельного алгоритма}
+
+Алгоритм обладает высокой степенью параллелизма, поскольку значение каждого выходного пикселя зависит только от локальной окрестности $3\times 3$. Основная схема распараллеливания:
+\begin{enumerate}
+    \item Обработка всех внутренних пикселей $(x,y)$ с $1 \le x \le H-2$, $1 \le y \le W-2$.
+    \item Линейная нумерация внутренних пикселей: 
+    \[
+    \text{index} = (x - 1)\times (W - 2) + (y - 1),\quad 
+    0 \le \text{index} < (H - 2)\times (W - 2).
+    \]
+    \item Каждый поток (или задача) обрабатывает свой диапазон индексов $\bigl[\text{start},\,\text{end}\bigr)$, вычисляет $G_x,\,G_y$ и записывает $\min(\lfloor\sqrt{G_x^2+G_y^2}\rfloor,\,255)$ в выходной массив.
+    \item После вычислений все части собираются в единый результат. В гибридной версии MPI + TBB — используется boost::mpi::reduce для поэлементного объединения (каждая ячейка вычисляется ровно одним ранком).
+\end{enumerate}
+
+\section{Описание всех версий реализации}
+
+\subsection{Последовательная версия}
+
+В последовательной реализации алгоритм заключается в двух вложенных циклах, пробегающих по всем внутренним пикселям изображения (индексы $i=1\ldots H-2$, $j=1\ldots W-2$). Для каждой позиции $(i,j)$ вычисляются две компоненты градиента $G_x$ и $G_y$ посредством свёртки с фиксированными ядрами $3\times3$. После накопления сумм \texttt{sumgx} и \texttt{sumgy} вычисляется модуль градиента
+\[
+    \texttt{magnitude} = \lfloor \sqrt{\texttt{sumgx}^2 + \texttt{sumgy}^2} \rfloor,
+\]
+который затем обрезается до 255 и записывается в массив \texttt{output\_} по смещению \(\,(i \times W) + j\). Эта версия служит эталоном корректности: выходной массив однозначно определяется входными данными, и любые расхождения в параллельных реализациях сравниваются именно с ней.
+
+\subsection{Версия с использованием STL-потоков}
+
+Реализация на базе \texttt{std::thread} разбивает общее число внутренних пикселей \((H-2)\times(W-2)\) на равные (с учётом остатка) части для каждого потока. Сначала вычисляются параметры:
+\[
+    rows = H - 2,\quad cols = W - 2,\quad total = rows \times cols.
+\]
+Количество потоков определяется системной функцией.
+Базовый размер блока для каждого потока равен total/numthreads,
+а оставшиеся пиксели распределяются по одному элементу 
+на первые total/numthreads потоков.
+
+\subsection{Версия с использованием OpenMP}
+
+Для OpenMP достаточно добавить одну директиву перед внешним циклом:
+\[
+rows = H - 2,\quad cols = W - 2,\quad total = rows \times cols.
+\]
+Затем основной цикл по \texttt{index} от \(0\) до \(total - 1\) оборачивается в
+\begin{verbatim}
+#pragma omp parallel for
+\end{verbatim}
+— компилятор сам создаёт нужное число потоков и распределяет диапазон итераций. Переменные для сумм \(\texttt{sumgx}, \texttt{sumgy}\) автоматически становятся приватными. Внутри каждой итерации вычисляются координаты \((i,j)\), затем в двойном цикле по \(\{-1,0,1\}\) накапливаются продукты пикселей с элементами ядра Собеля. После вычисления \(\sqrt{sumgx^2 + sumgy^2}\) и обрезки до 255 результат записывается в \texttt{output\_[(i * W) + j]}.
+
+\subsection{Версия с использованием TBB}
+
+TBB-версия организована схожим образом, но вместо директивы OpenMP используется библиотечный вызов для распараллеливания диапазона индексов. Сначала, как и в других вариантах, вычисляются:
+\[
+rows = H - 2,\quad cols = W - 2,\quad total\_pixels = rows \times cols.
+\]
+Далее вызывается функция распараллеливания, которая автоматически создаёт пул потоков и разбивает диапазон от \(0\) до \(total\_pixels - 1\) на блоки. Внутри каждого блока для каждого \texttt{index}:
+\begin{itemize}
+    \item вычисляются координаты \((i,j)\) по формулам
+    \[
+        i = 1 + \bigl\lfloor \texttt{index} / \texttt{cols} \bigr\rfloor,\quad
+        j = 1 + (\texttt{index} \bmod \texttt{cols});
+    \]
+    \item в двойном вложенном цикле по \(\{-1,0,1\}\) накапливаются суммы градиентов \(\texttt{sumgx}\) и \(\texttt{sumgy}\) путём перемножения соседних пикселей с элементами ядра Собеля;
+    \item вычисляется значение градиентного модуля \(\sqrt{\texttt{sumgx}^2 + \texttt{sumgy}^2}\), обрезается до 255 и записывается в \texttt{output\_[(i * W) + j]}.
+\end{itemize}
+Библиотека TBB самостоятельно балансирует нагрузку между потоками, обеспечивая динамическое разбиение диапазона на блоки. Благодаря этому схема остаётся лаконичной, без явного управления потоками, синхронизацией или разбивкой работы — достаточно одного вызова распараллеливания, а вызов функции и валидация параметров заданы в \texttt{PreProcessingImpl()} и \texttt{ValidationImpl()}.
+
+\subsection{Гибридная версия MPI + TBB}
+
+Гибридная схема сочетает MPI и TBB:
+\begin{enumerate}
+    \item Определяются параметры:
+    \[
+        rows = H - 2,\quad cols = W - 2,\quad total\_pixels = rows \times cols.
+    \]
+    \item С помощью \texttt{world\_.rank()} и \texttt{world\_.size()} вычисляется диапазон с startidx до endix по формуле равномерного разбиения…
+    \item Внутри каждого MPI-ранка запускается TBB код
+    обработки локального диапазона.  
+    \item После локальной работы выполняется поэлементная редукция.
+
+\end{enumerate}
+\section{Результаты экспериментов}
+
+\subsection{Аппаратная и программная конфигурация}
+
+Эксперименты проводились на одной и той же платформе, чтобы обеспечить сопоставимость:
+\begin{itemize}
+    \item ОС: Windows 10.
+    \item Процессор: AMD Ryzen 5 3600 @ 3.60ГГц.
+    \item ОЗУ: 16 ГБ DDR4.
+    \item Библиотеки: Intel TBB 2021 Update 7, Boost.MPI 1.78.0, OpenMP 4.5.
+    \item Измерение времени: \texttt{std::chrono::high\_resolution\_clock}.
+    \item Каждый тест запускался 10 раз (см. код перфоманс-тестов), статистика собирается по итогу через Perf API.
+\end{itemize}
+
+\subsection{Тестовый массив}
+
+Для всех экспериментов использовался единый тестовый массив пикселей размером $4500 \times 4500$ (всего $20\,250\,000$ элементов), заполненный случайными значениями в диапазоне $[0,\,255]$. Корректность результатов проверялась сравнением MD5-хеша выходного массива каждой версии с эталонной последовательной реализацией (функция \texttt{SSobel}).
+
+\subsection{Замеры производительности с помощью Perf}
+
+Для более точного измерения времени выполнения использовался специализированный фреймворк Perf внутри тестов Google Test. Сценарии разбиты на два режима:
+\begin{itemize}
+    \item \texttt{PipelineRun} — многократный запуск функции \texttt{RunImpl} подряд (без переинициализации данных).
+    \item \texttt{TaskRun} — каждый запуск сопровождается пре- и пост-обработкой данных (новое задание TaskData).
+\end{itemize}
+
+\subsection{Временные показатели}
+
+В таблице~\ref{tab:timings4500} приведены усреднённые времена (мс) обработки массива $4500 \times 4500$ пикселей для всех версий. Значения получены из результатов Perf (в режиме \texttt{PipelineRun}, близкое к \texttt{TaskRun}).
+
+\begin{table}[H]
+    \centering
+    \caption{Среднее время выполнения (мс) для массива $4500\times 4500$ пикселей}
+    \label{tab:timings4500}
+    \begin{tabular}{|l|c|}
+        \hline
+        \textbf{Версия алгоритма} & \textbf{Time (мс)} \\
+        \hline
+        Последовательная (Seq)            & 4250  \\
+        STL-потоки                        & 1000  \\
+        OpenMP                            &  850  \\
+        Intel TBB                         &  800  \\
+        MPI                               &  560  \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\paragraph{Анализ результатов.}  
+\begin{itemize}
+    \item \textbf{Последовательная версия} демонстрирует квадратичный рост времени, близкий к $O(N^2)$: для разрешения $4500\times4500$ получено около 4250 мс.
+    \item \textbf{STL-потоки} обеспечивают ускорение примерно в $\times 4{,}25$, но накладные расходы на создание и синхронизацию потоков ограничивают выигрыш.
+    \item \textbf{OpenMP} показал более эффективное распределение итераций, что дало ускорение около $\times 5{,}0$.
+    \item \textbf{Intel TBB} увеличил скорость дополнительно за счёт динамического балансирования нагрузки, получив около 800 мс ($\times 5{,}3$ ускорения).
+    \item \textbf{MPI + TBB} показал лучшее время — 560 мс ($\times 7{,}6$), благодаря сочетанию межпроцессного и внутрипроцессного параллелизма.
+\end{itemize}
+
+\subsection{Оценка корректности}
+
+Корректность всех версий подтверждена сравнением выходного массива каждой реализации с эталонным выходом последовательного алгоритма \texttt{SSobel}. В каждом перфоманс-тесте после выполнения также проверялось поэлементное равенство \texttt{out[i]} и \texttt{expected[i]} для всех $20\,250\,000$ элементов.
+
+\section{Выводы из результатов}
+
+На основании проведённых экспериментов и замеров можно сделать следующие выводы:
+\begin{enumerate}
+    \item Последовательная реализация корректна, но неэффективна для больших объёмов данных (время $\sim 4250$ мс).
+    \item STL-потоки дают ускорение, но ограничены накладными расходами на управление потоками (время $\sim 1000$ мс).
+    \item OpenMP упрощает распараллеливание директивами и даёт около $\times 5$ ускорения (время $\sim 850$ мс).
+    \item Intel TBB демонстрирует лучшее распределение работы и улучшает время до $\sim 800$ мс ($\times 5{,}3$).
+    \item Гибрид MPI + TBB достигает максимального выигрыша ($\times 7{,}6$), показав время $\sim 560$ мс.
+\end{enumerate}
+
+\section{Заключение}
+
+В данной работе была выполнена комплексная реализация алгоритма оператора Собеля: от последовательной версии до гибридной схемы MPI + TBB, и проведён объективный анализ производительности для массива $4500\times4500$ пикселей. Выявлено, что для однородных многопоточных систем оптимальным решением является Intel TBB или OpenMP, а для распределённых вычислений — гибрид MPI + TBB. Все версии показали полную корректность (подтверждённую MD5-сравнением).
+
+\section{Список литературы}
+\begin{enumerate}
+ \item Сысоев А.В., Мееров И.Б., Сиднев А.А. \textit{Средства разработки параллельных программ для систем с общей памятью. Библиотека Intel Threading Building Blocks}. — Нижний Новгород, 2007.
+ \item Reinders J. \textit{Intel Threading Building Blocks}. — O’Reilly Media, 2007.
+ \item OpenMP Architecture Review Board. \textit{OpenMP API Version 5.1}. — 2020.
+\end{enumerate}
+
+\newpage
+\appendix
+\section{Приложение}
+
+\subsection{Последовательная версия (\texttt{TestTaskSequential})}
+
+\begin{lstlisting}[language=C++, caption={Последовательная реализация оператора Собеля}]
+bool zaytsev_d_sobel_seq::TestTaskSequential::RunImpl() {
+    const int gxkernel[3][3] = {
+        {-1,  0,  1},
+        {-2,  0,  2},
+        {-1,  0,  1}
+    };
+    const int gykernel[3][3] = {
+        {-1, -2, -1},
+        { 0,  0,  0},
+        { 1,  2,  1}
+    };
+
+    for (int i = 1; i < height_ - 1; ++i) {
+        for (int j = 1; j < width_ - 1; ++j) {
+            int sumgx = 0, sumgy = 0;
+            for (int di = -1; di <= 1; ++di) {
+                for (int dj = -1; dj <= 1; ++dj) {
+                    int ni = i + di, nj = j + dj;
+                    int kr = di + 1, kc = dj + 1;
+                    int pix = input_[(ni * width_) + nj];
+                    sumgx += pix * gxkernel[kr][kc];
+                    sumgy += pix * gykernel[kr][kc];
+                }
+            }
+            int magnitude = static_cast<int>(
+                std::sqrt(sumgx * sumgx + sumgy * sumgy)
+            );
+            output_[(i * width_) + j] = std::min(magnitude, 255);
+        }
+    }
+    return true;
+}
+\end{lstlisting}
+
+\subsection{Версия STL-потоков (\texttt{TestTaskSTL})}
+
+\begin{lstlisting}[language=C++, caption={Параллельная реализация с использованием std::thread}]
+bool zaytsev_d_sobel_stl::TestTaskSTL::RunImpl() {
+    const int gxkernel[3][3] = {
+        {-1,  0,  1},
+        {-2,  0,  2},
+        {-1,  0,  1}
+    };
+    const int gykernel[3][3] = {
+        {-1, -2, -1},
+        { 0,  0,  0},
+        { 1,  2,  1}
+    };
+
+    int rows = height_ - 2, cols = width_ - 2;
+    int total = rows * cols;
+
+    const int num_threads = ppc::util::GetPPCNumThreads();
+    std::vector<std::thread> threads;
+    threads.reserve(num_threads);
+
+    auto worker = [&](int start, int end) {
+        for (int idx = start; idx < end; ++idx) {
+            int i = 1 + (idx / cols), j = 1 + (idx % cols);
+            int sumgx = 0, sumgy = 0;
+            for (int di = -1; di <= 1; ++di) {
+                for (int dj = -1; dj <= 1; ++dj) {
+                    int ni = i + di, nj = j + dj;
+                    int kr = di + 1, kc = dj + 1;
+                    int pix = input_[(ni * width_) + nj];
+                    sumgx += pix * gxkernel[kr][kc];
+                    sumgy += pix * gykernel[kr][kc];
+                }
+            }
+            int mag = static_cast<int>(
+                std::sqrt(sumgx * sumgx + sumgy * sumgy)
+            );
+            output_[(i * width_) + j] = std::min(mag, 255);
+        }
+    };
+
+    int base = total / num_threads, rem = total % num_threads, offset = 0;
+    for (int t = 0; t < num_threads; ++t) {
+        int chunk = base + (t < rem ? 1 : 0);
+        int start = offset, end = offset + chunk;
+        threads.emplace_back(worker, start, end);
+        offset += chunk;
+    }
+    for (auto &th : threads) {
+        th.join();
+    }
+
+    return true;
+}
+\end{lstlisting}
+
+\subsection{Версия OpenMP (\texttt{TestTaskOpenMP})}
+
+\begin{lstlisting}[language=C++, caption={Параллельная реализация с OpenMP}]
+bool zaytsev_d_sobel_omp::TestTaskOpenMP::RunImpl() {
+    const int gxkernel[3][3] = {
+        {-1,  0,  1},
+        {-2,  0,  2},
+        {-1,  0,  1}
+    };
+    const int gykernel[3][3] = {
+        {-1, -2, -1},
+        { 0,  0,  0},
+        { 1,  2,  1}
+    };
+
+    int rows = height_ - 2, cols = width_ - 2;
+
+    #pragma omp parallel for
+    for (int index = 0; index < rows * cols; ++index) {
+        int i = 1 + (index / cols), j = 1 + (index % cols);
+        int sumgx = 0, sumgy = 0;
+        for (int di = -1; di <= 1; ++di) {
+            for (int dj = -1; dj <= 1; ++dj) {
+                int ni = i + di, nj = j + dj;
+                int pix = input_[(ni * width_) + nj];
+                sumgx += pix * gxkernel[di+1][dj+1];
+                sumgy += pix * gykernel[di+1][dj+1];
+            }
+        }
+        int magnitude = static_cast<int>(
+            std::sqrt(sumgx * sumgx + sumgy * sumgy)
+        );
+        output_[(i * width_) + j] = std::min(magnitude, 255);
+    }
+
+    return true;
+}
+\end{lstlisting}
+
+\subsection{Версия Intel TBB (\texttt{TestTaskTBB})}
+
+\begin{lstlisting}[language=C++, caption={Параллельная реализация с Intel TBB}]
+#include "tbb/zaytsev_d_sobel/include/ops_tbb.hpp"
+#include <tbb/tbb.h>
+#include <algorithm>
+#include <cmath>
+#include <vector>
+#include "oneapi/tbb/blocked_range.h"
+#include "oneapi/tbb/parallel_for.h"
+
+bool zaytsev_d_sobel_tbb::TestTaskTBB::PreProcessingImpl() {
+    auto *in_ptr = reinterpret_cast<int *>(task_data->inputs[0]);
+    input_ = std::vector<int>(in_ptr, in_ptr + task_data->inputs_count[0]);
+    auto *size_ptr = reinterpret_cast<int *>(task_data->inputs[1]);
+    width_ = size_ptr[0]; height_ = size_ptr[1];
+    output_ = std::vector<int>(task_data->outputs_count[0], 0);
+    return true;
+}
+
+bool zaytsev_d_sobel_tbb::TestTaskTBB::ValidationImpl() {
+    auto *size_ptr = reinterpret_cast<int *>(task_data->inputs[1]);
+    int width = size_ptr[0], height = size_ptr[1];
+    return (task_data->inputs_count[0] == task_data->outputs_count[0]) &&
+           (width >= 3 && height >= 3) &&
+           ((width * height) == int(task_data->inputs_count[0]));
+}
+
+bool zaytsev_d_sobel_tbb::TestTaskTBB::RunImpl() {
+    const int gxkernel[3][3] = {
+        {-1,  0,  1},
+        {-2,  0,  2},
+        {-1,  0,  1}
+    };
+    const int gykernel[3][3] = {
+        {-1, -2, -1},
+        { 0,  0,  0},
+        { 1,  2,  1}
+    };
+
+    int rows = height_ - 2, cols = width_ - 2;
+    int total_pixels = rows * cols;
+
+    tbb::parallel_for(
+        tbb::blocked_range<int>(0, total_pixels),
+        [this, &gxkernel, &gykernel, cols](const tbb::blocked_range<int> &r) {
+            for (int index = r.begin(); index < r.end(); ++index) {
+                int i = 1 + (index / cols), j = 1 + (index % cols);
+                int sumgx = 0, sumgy = 0;
+                for (int di = -1; di <= 1; ++di) {
+                    for (int dj = -1; dj <= 1; ++dj) {
+                        int ni = i + di, nj = j + dj;
+                        int pix = input_[(ni * width_) + nj];
+                        sumgx += pix * gxkernel[di+1][dj+1];
+                        sumgy += pix * gykernel[di+1][dj+1];
+                    }
+                }
+                int magnitude = static_cast<int>(
+                    std::sqrt(sumgx * sumgx + sumgy * sumgy)
+                );
+                output_[(i * width_) + j] = std::min(magnitude, 255);
+            }
+        }
+    );
+    return true;
+}
+
+bool zaytsev_d_sobel_tbb::TestTaskTBB::PostProcessingImpl() {
+    std::ranges::copy(output_, reinterpret_cast<int *>(task_data->outputs[0]));
+    return true;
+}
+\end{lstlisting}
+
+\subsection{Гибрид MPI + TBB (\texttt{TestTaskALL})}
+
+\begin{lstlisting}[language=C++, caption={Гибридная реализация MPI + TBB}]
+bool zaytsev_d_sobel_all::TestTaskALL::RunImpl() {
+    static constexpr int kGxkernel[3][3] = {
+        {-1,  0,  1},
+        {-2,  0,  2},
+        {-1,  0,  1}
+    };
+    static constexpr int kGykernel[3][3] = {
+        {-1, -2, -1},
+        { 0,  0,  0},
+        { 1,  2,  1}
+    };
+
+    int rows = height_ - 2, cols = width_ - 2;
+    int total_pixels = rows * cols;
+    int rank = world_.rank(), size = world_.size();
+
+    int chunk = total_pixels / size;
+    int rem = total_pixels % size;
+    int start_idx = rank * chunk + std::min(rank, rem);
+    int end_idx = start_idx + chunk + (rank < rem ? 1 : 0);
+
+    tbb::parallel_for(
+        tbb::blocked_range<int>(start_idx, end_idx),
+        [&](const tbb::blocked_range<int> &r) {
+            for (int idx = r.begin(); idx < r.end(); ++idx) {
+                int i = 1 + (idx / cols), j = 1 + (idx % cols);
+                int sumgx = 0, sumgy = 0;
+                for (int di = -1; di <= 1; ++di) {
+                    for (int dj = -1; dj <= 1; ++dj) {
+                        int ni = i + di, nj = j + dj;
+                        sumgx += input_[(ni * width_) + nj] * kGxkernel[di+1][dj+1];
+                        sumgy += input_[(ni * width_) + nj] * kGykernel[di+1][dj+1];
+                    }
+                }
+                int mag = static_cast<int>(
+                    std::sqrt(sumgx * sumgx + sumgy * sumgy)
+                );
+                output_[(i * width_) + j] = std::min(mag, 255);
+            }
+        }
+    );
+
+    if (rank == 0) {
+        std::vector<int> combined(output_.size());
+        boost::mpi::reduce(world_, output_, combined, std::plus<>(), 0);
+        output_.swap(combined);
+    } else {
+        boost::mpi::reduce(world_, output_, std::plus<>(), 0);
+    }
+
+    return true;
+}
+\end{lstlisting}
+
+\end{document}
