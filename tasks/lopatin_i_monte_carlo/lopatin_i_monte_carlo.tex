@@ -1,0 +1,939 @@
+\documentclass[12pt,a4paper]{extarticle}
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[russian]{babel}
+\usepackage{geometry}
+\usepackage{setspace}
+\usepackage{titlesec}
+\usepackage{indentfirst}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{url}
+\usepackage{framed}
+\usepackage{listings}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\geometry{
+	a4paper,
+	left=30mm,
+	right=15mm,
+	top=20mm,
+	bottom=20mm
+}
+
+\titleformat{\section}[block]
+{\normalfont\fontsize{14}{16}\bfseries\centering}
+{\thesection.}{0.5em}{}
+\titleformat{\subsection}[block]
+{\normalfont\fontsize{14}{16}\bfseries\filcenter}
+{\thesubsection.}{0.5em}{}
+\titleformat{\subsubsection}[block]
+{\normalfont\fontsize{14}{16}\bfseries\filcenter}
+{\thesubsubsection.}{0.5em}{}
+
+\lstset{
+	basicstyle=\ttfamily\small,
+	keywordstyle=\color{blue},
+	commentstyle=\color{green},
+	stringstyle=\color{red},
+	frame=single,
+	tabsize=4,
+	showstringspaces=false,
+	breaklines=true
+}
+
+\sloppy
+
+\onehalfspacing
+
+\setlength{\parindent}{1.25cm}
+
+\newcommand{\appendixsection}[1]{%
+	\clearpage
+	\section*{\centering Приложение #1}
+	\addcontentsline{toc}{section}{Приложение #1}
+}
+
+\begin{document}
+	
+	\begin{titlepage}
+		\begin{center}
+			
+			\onehalfspacing
+			
+			\begin{center}
+				\textbf{МИНИСТЕРСТВО НАУКИ И ВЫСШЕГО ОБРАЗОВАНИЯ РОССИЙСКОЙ ФЕДЕРАЦИИ} \\ 			
+				\vspace{0.5cm}
+				Федеральное государственное автономное образовательное учреждение высшего образования \\ 
+				\vspace{0.5cm}
+				\textbf{«Национальный исследовательский Нижегородский государственный университет имени Н.И. Лобачевского»} \\
+				(ННГУ)\\
+				\vspace{0.5cm}
+				\textbf{Институт информационных технологий, математики и механики}
+			\end{center}
+			\vspace{0.5cm}
+			\begin{center}
+			Направление подготовки: Фундаментальная информатика и информационные технологии
+			
+			
+			Профиль подготовки: «Инженерия программного обеспечения»
+			\end{center}
+			\vspace{2.5cm}
+			\begin{center}
+				\textbf{Отчёт по лабораторной работе}
+
+				на тему: 
+				
+				\textbf{"Вычисление многомерных интегралов методом Монте-Карло"}
+			\end{center}
+			
+			\vspace{2.5cm}
+			
+			\begin{flushright}
+				\textbf{Выполнил:} \\
+				студент 3 курса группы 3822Б1ФИ3 \\
+				Лопатин И.И. \\
+				
+				\vspace{1cm}
+				
+			\noindent\textbf{Преподаватель:} \\
+			к.т.н., доцент кафедры ВВСП \\
+			{Сысоев А.В.}
+			\end{flushright}
+			
+			\vspace{2em}
+			
+			\vfill
+			
+			\begin{center}
+				Нижний Новгород \\
+				2025 г.
+			\end{center}
+			
+		\end{center}
+	\end{titlepage}
+	
+	\newpage
+
+% Оглавление
+\tableofcontents
+\newpage
+
+% Введение
+\section{Введение}
+Вычисление многомерных интегралов представляет собой одну из фундаментальных задач, возникающих в самых разнообразных областях науки и техники. В физике такие интегралы используются для моделирования движения частиц, вычисления статистических характеристик систем и решения уравнений квантовой механики. В финансах они применяются для оценки сложных производных инструментов и анализа рисков, где требуется учитывать множество случайных факторов. В машинном обучении многомерные интегралы играют ключевую роль при вычислении ожидаемых значений в вероятностных моделях и байесовском выводе. Компьютерная графика также полагается на эти вычисления, например, при рендеринге сцен с использованием методов трассировки лучей, где необходимо интегрировать освещённость по сложным поверхностям.
+
+Традиционные методы численного интегрирования, такие как квадратурные формулы или методы трапеций, хорошо зарекомендовали себя для задач низкой размерности. Однако их эффективность резко падает в пространствах высокой размерности из-за так называемого «проклятия размерности» — экспоненциального роста числа узлов, необходимых для достижения приемлемой точности. Например, для интегрирования функции в десятимерном пространстве с использованием равномерной сетки с шагом 10 узлов на измерение потребуется \(10^{10}\) вычислений, что делает такие подходы практически неприменимыми.
+
+Метод Монте-Карло предлагает альтернативное решение, основанное на стохастическом подходе. Его суть заключается в аппроксимации интеграла через усреднение значений подынтегральной функции в случайно выбранных точках области интегрирования. В отличие от детерминированных методов, вычислительная сложность метода Монте-Карло растёт линейно с размерностью пространства, что делает его особенно привлекательным для задач с большим числом переменных. Более того, метод обладает универсальностью: он применим к интегралам с произвольной областью интегрирования и не требует строгих предположений о гладкости функции.
+
+Однако у метода есть и недостатки. Для достижения высокой точности требуется большое количество случайных точек, что приводит к значительным вычислительным затратам. Например, ошибка аппроксимации в методе Монте-Карло уменьшается пропорционально \(1/\sqrt{N}\), где \(N\) — число итераций, что означает медленную сходимость по сравнению с детерминированными методами в низких размерностях. Этот недостаток можно компенсировать за счёт параллельных вычислений, которые позволяют распределить генерацию точек и вычисление значений функции между несколькими потоками или процессами. Современные вычислительные системы, включая многоядерные процессоры и распределённые кластеры, предоставляют широкие возможности для реализации такого подхода.
+
+Целью данной работы является разработка и исследование различных реализаций метода Монте-Карло для вычисления многомерных интегралов. В рамках исследования реализованы последовательная версия алгоритма и несколько параллельных версий с использованием технологий OpenMP, Intel Threading Building Blocks (TBB), стандартной библиотеки потоков C++ (STL) и гибридного подхода на основе MPI и OpenMP. Особое внимание уделено сравнению производительности этих реализаций, анализу эффективности параллелизации и выявлению особенностей каждой технологии в контексте поставленной задачи. Результаты работы могут быть полезны для выбора оптимального подхода к вычислению многомерных интегралов в зависимости от доступных вычислительных ресурсов и требований к производительности.
+
+\newpage
+\section{Постановка задачи}
+Задача состоит в вычислении многомерного интеграла вида:
+\[
+I = \int_{\Omega} f(\mathbf{x}) \, d\mathbf{x},
+\]
+где \(\Omega \subset \mathbf{R}^d\) — область интегрирования, заданная как декартово произведение интервалов \([a_1, b_1] \times [a_2, b_2] \times \ldots \times [a_d, b_d]\), а \(f(\mathbf{x})\) — подынтегральная функция, определённая пользователем.
+
+\subsection{Входные данные}
+\begin{itemize}
+    \item Границы интегрирования: вектор пар \((a_j, b_j)\) для каждой размерности \(j = 1, 2, \ldots, d\).
+    \item Количество итераций \(N\) — число случайных точек, используемых для аппроксимации интеграла.
+    \item Функция \(f(\mathbf{x})\) — подынтегральная функция, заданная в виде callable-объекта.
+\end{itemize}
+
+\subsection{Выходные данные}
+\begin{itemize}
+    \item Приближённое значение интеграла \(I\).
+\end{itemize}
+
+\subsection{Задачи исследования}
+\begin{itemize}
+    \item Реализовать последовательный алгоритм метода Монте-Карло.
+    \item Разработать параллельные версии алгоритма с использованием технологий OpenMP, TBB, STL и гибридного подхода MPI+OpenMP.
+    \item Провести эксперименты для сравнения производительности реализаций и оценить эффективность параллелизации.
+\end{itemize}
+
+\newpage
+\section{Описание алгоритма}
+Метод Монте-Карло основан на вероятностной интерпретации интеграла как математического ожидания функции \(f(\mathbf{x})\) при случайном \(\mathbf{x}\), равномерно распределённом в области \(\Omega\). Значение интеграла аппроксимируется средним значением функции по набору случайных точек.
+
+\subsection{Последовательный алгоритм}
+Последовательный алгоритм вычисления многомерного интеграла методом Монте-Карло включает следующие этапы:
+
+\begin{enumerate}
+    \item \textbf{Вычисление объёма области интегрирования}: Область \(\Omega\) представляет собой прямоугольный параллелепипед, и её объём вычисляется как:
+    \[
+    V = \prod_{j=1}^d (b_j - a_j),
+    \]
+    где \(b_j\) и \(a_j\) — верхняя и нижняя границы интервала для \(j\)-й размерности.
+
+    \item \textbf{Инициализация генератора случайных чисел}: Используется генератор \texttt{std::mt19937} (алгоритм Мерсенна Твистера), обеспечивающий высокое качество псевдослучайных чисел. Начальное значение (seed) задаётся с помощью \texttt{std::random\_device} или комбинации текущего времени и других уникальных данных.
+
+    \item \textbf{Генерация случайных точек}: Для каждой итерации \(i = 1, 2, \ldots, N\) генерируется случайная точка \(\mathbf{x}_i = (x_{i1}, x_{i2}, \ldots, x_{id})\). Координаты \(x_{ij}\) равномерно распределены в интервале \([a_j, b_j]\) и вычисляются как:
+    \[
+    x_{ij} = a_j + (b_j - a_j) \cdot u_{ij},
+    \]
+    где \(u_{ij} \sim U(0, 1)\) — случайное число из равномерного распределения, сгенерированное с помощью \texttt{std::uniform\_real\_distribution}.
+
+    \item \textbf{Вычисление суммы значений функции}: Подынтегральная функция вычисляется в каждой точке \(\mathbf{x}_i\), и значения суммируются:
+    \[
+    S = \sum_{i=1}^N f(\mathbf{x}_i).
+    \]
+
+    \item \textbf{Оценка интеграла}: Итоговое значение интеграла аппроксимируется по формуле:
+    \[
+    I \approx \frac{V}{N} \cdot S.
+    \]
+\end{enumerate}
+
+Этот алгоритм прост в реализации и не требует сложных вычислительных структур, однако его производительность ограничена последовательным характером вычислений. Для больших \(N\) или сложных функций \(f(\mathbf{x})\) время выполнения может быть значительным.
+
+\subsection{Параллельные версии алгоритма}
+Параллельные версии алгоритма распределяют вычисления между потоками или процессами, что позволяет сократить время выполнения. Поскольку генерация точек и вычисление \(f(\mathbf{x}_i)\) для каждой итерации независимы, задача идеально подходит для распараллеливания.
+
+\subsubsection{Общая схема}
+\begin{itemize}
+    \item Общее число итераций \(N\) делится на \(K\) частей, где \(K\) — число потоков или процессов.
+    \item Каждый поток/процесс выполняет свою долю итераций, генерируя локальный набор точек и вычисляя локальную сумму \(S_k\).
+    \item Локальные суммы объединяются в глобальную сумму:
+    \[
+    S = \sum_{k=1}^K S_k.
+    \]
+    \item Итоговый интеграл вычисляется как \(I \approx \frac{V}{N} \cdot S\).
+\end{itemize}
+
+\subsubsection{Ключевые аспекты параллелизации}
+\begin{itemize}
+    \item \textbf{Независимость генерации случайных чисел}: Для обеспечения статистической корректности каждый поток или процесс использует свой генератор случайных чисел с уникальным начальным значением (seed). Это предотвращает корреляцию между последовательностями точек.
+    \item \textbf{Синхронизация}: Необходима только на этапе объединения локальных сумм, что минимизирует накладные расходы.
+    \item \textbf{Масштабируемость}: Эффективность зависит от числа доступных вычислительных ресурсов и накладных расходов на управление потоками/процессами.
+\end{itemize}
+
+\newpage
+\section{Описание реализаций}
+
+\subsection{Последовательная версия}
+Последовательная реализация (файл \texttt{lopatinMonteCarloSeq.cpp}) следует описанному алгоритму:
+\begin{itemize}
+    \item Генератор случайных чисел инициализируется один раз с использованием \texttt{std::random\_device} и \texttt{std::seed\_seq} для создания надёжного начального значения.
+    \item В цикле по \(N\) итерациям генерируются точки \(\mathbf{x}_i\), вычисляется \(f(\mathbf{x}_i)\), и значения накапливаются в переменной \texttt{result\_}.
+    \item После завершения цикла результат масштабируется на объём области \(V\).
+\end{itemize}
+
+\textbf{Код:}
+\begin{lstlisting}[language=C++]
+std::random_device rd;
+std::seed_seq seed{rd(), static_cast<unsigned int>(std::time(nullptr))};
+std::mt19937 rnd(seed);
+std::uniform_real_distribution<> dis(0.0, 1.0);
+
+result_ = 0.0;
+for (int i = 0; i < iterations_; ++i) {
+    std::vector<double> point(d);
+    for (size_t j = 0; j < d; ++j) {
+        const double min = integrationBounds_[2 * j];
+        const double max = integrationBounds_[(2 * j) + 1];
+        point[j] = min + (max - min) * dis(rnd);
+    }
+    result_ += integrand_(point);
+}
+result_ = (result_ / iterations_) * volume;
+\end{lstlisting}
+
+\subsection{OpenMP версия}
+Реализация с OpenMP (файл \texttt{lopatinMonteCarloOMP.cpp}) использует многопоточность на уровне циклов:
+\begin{itemize}
+    \item Директива \texttt{\#pragma omp parallel reduction(+ : total\_sum)} создаёт пул потоков и автоматически суммирует локальные результаты.
+    \item Число итераций \(N\) делится между потоками с помощью \texttt{\#pragma omp for}.
+    \item Каждый поток инициализирует свой генератор \texttt{std::mt19937} с уникальным seed из предварительно сгенерированного вектора \texttt{seeds}.
+\end{itemize}
+
+\textbf{Код:}
+\begin{lstlisting}[language=C++]
+std::vector<std::mt19937::result_type> seeds(omp_get_max_threads());
+seed.generate(seeds.begin(), seeds.end());
+
+double total_sum = 0.0;
+#pragma omp parallel reduction(+ : total_sum)
+{
+    const int tid = omp_get_thread_num();
+    std::mt19937 local_rnd(seeds[tid]);
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+
+    #pragma omp for
+    for (int i = 0; i < iterations_; ++i) {
+        std::vector<double> point(d);
+        for (size_t j = 0; j < d; ++j) {
+            const double min = integrationBounds_[2 * j];
+            const double max = integrationBounds_[(2 * j) + 1];
+            point[j] = min + (max - min) * dis(local_rnd);
+        }
+        total_sum += integrand_(point);
+    }
+}
+result_ = (total_sum / iterations_) * volume;
+\end{lstlisting}
+
+\subsection{TBB версия}
+Реализация с Intel TBB (файл \texttt{lopatinMonteCarloTBB.cpp}) использует высокоуровневую модель задач:
+\begin{itemize}
+    \item Функция \texttt{tbb::parallel\_reduce} делит диапазон итераций на блоки (\texttt{blocked\_range}) и распределяет их между потоками.
+    \item Каждый поток использует локальный генератор \texttt{std::mt19937}, помеченный как \texttt{thread\_local}, чтобы избежать конфликтов.
+    \item Локальные суммы объединяются с помощью операции сложения (\texttt{std::plus<>}).
+\end{itemize}
+
+\textbf{Код:}
+\begin{lstlisting}[language=C++]
+double total_sum = arena.execute([&] {
+    return oneapi::tbb::parallel_reduce(
+        oneapi::tbb::blocked_range<std::size_t>(0, iterations_, iterations_ / arena.max_concurrency()), 0.0,
+        [&](const oneapi::tbb::blocked_range<std::size_t>& range, double sum) {
+            static thread_local std::mt19937 local_rnd;
+            static thread_local bool initialized = false;
+            if (!initialized) {
+                const size_t idx = reinterpret_cast<uintptr_t>(&local_rnd) % num_threads;
+                local_rnd.seed(seeds[idx]);
+                initialized = true;
+            }
+            std::uniform_real_distribution<> dis(0.0, 1.0);
+            std::vector<double> point(d);
+
+            for (size_t i = range.begin(); i < range.end(); ++i) {
+                for (size_t j = 0; j < d; ++j) {
+                    const double min = integrationBounds_[2 * j];
+                    const double max = integrationBounds_[(2 * j) + 1];
+                    point[j] = min + (max - min) * dis(local_rnd);
+                }
+                sum += integrand_(point);
+            }
+            return sum;
+        },
+        std::plus<>());
+});
+result_ = (total_sum / iterations_) * volume;
+\end{lstlisting}
+
+\subsection{STL версия}
+Реализация с использованием STL (файл \texttt{lopatinMonteCarloSTL.cpp}) вручную управляет потоками:
+\begin{itemize}
+    \item Итерации делятся на равные части между потоками (\texttt{chunk\_size}).
+    \item Каждый поток выполняет функцию \texttt{thread\_task}, вычисляя локальную сумму в своём диапазоне.
+    \item Локальные суммы собираются в вектор \texttt{partial\_sums} и суммируются с помощью \texttt{std::accumulate}.
+\end{itemize}
+
+\textbf{Код:}
+\begin{lstlisting}[language=C++]
+std::vector<double> partial_sums(num_threads, 0.0);
+auto thread_task = [&](int thread_id, int start, int end) {
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+    auto& gen = generators[thread_id];
+    double local_sum = 0.0;
+    for (int i = start; i < end; ++i) {
+        std::vector<double> point(d);
+        for (size_t j = 0; j < d; ++j) {
+            const double min = integrationBounds_[2 * j];
+            const double max = integrationBounds_[(2 * j) + 1];
+            point[j] = min + (max - min) * dis(gen);
+        }
+        local_sum += integrand_(point);
+    }
+    partial_sums[thread_id] = local_sum;
+};
+
+int start = 0;
+for (int tid = 0; tid < num_threads; ++tid) {
+    const int end = start + chunk_size + (tid < remainder ? 1 : 0);
+    threads[tid] = std::thread(thread_task, tid, start, end);
+    start = end;
+}
+for (auto& t : threads) {
+    t.join();
+}
+double total_sum = std::accumulate(partial_sums.begin(), partial_sums.end(), 0.0);
+result_ = (total_sum / iterations_) * volume;
+\end{lstlisting}
+
+\subsection{Гибридная MPI+OpenMP версия}
+Гибридная реализация (файл \texttt{lopatinMonteCarloALL.cpp}) комбинирует распределённые и многопоточные вычисления:
+\begin{itemize}
+    \item MPI распределяет итерации между процессами: каждый процесс выполняет \(N / P\) итераций, где \(P\) — число процессов.
+    \item OpenMP внутри каждого процесса параллелизует вычисления с помощью директивы \texttt{\#pragma omp parallel reduction}.
+    \item Каждый поток использует свой генератор, инициализированный с учётом номера процесса и потока.
+    \item Локальные суммы собираются с помощью \texttt{boost::mpi::reduce}.
+\end{itemize}
+
+\textbf{Код:}
+\begin{lstlisting}[language=C++]
+const int local_iterations = (iterations_ / world_size) + (world_rank < (iterations_ % world_size) ? 1 : 0);
+double local_sum = 0.0;
+#pragma omp parallel reduction(+ : local_sum)
+{
+    std::random_device rd;
+    std::seed_seq seed{rd(), static_cast<unsigned>(std::time(nullptr)), static_cast<unsigned>(world_rank), static_cast<unsigned>(omp_get_thread_num())};
+    std::mt19937 local_rnd(seed);
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+    #pragma omp for
+    for (int i = 0; i < local_iterations; ++i) {
+        std::vector<double> point(d);
+        for (size_t j = 0; j < d; ++j) {
+            const double min = integrationBounds_[2 * j];
+            const double max = integrationBounds_[(2 * j) + 1];
+            point[j] = min + (max - min) * dis(local_rnd);
+        }
+        local_sum += integrand_(point);
+    }
+}
+double global_sum = 0.0;
+boost::mpi::reduce(world_, local_sum, global_sum, std::plus<>(), 0);
+if (world_rank == 0) {
+    result_ = (global_sum / iterations_) * volume;
+}
+\end{lstlisting}
+
+\newpage
+\section{Результаты экспериментов}
+Эксперименты проводились для функции \(f(\mathbf{x}) = e^{x_1 + x_2 + x_3 + x_4 + x_5}\) в области \([-3, 3]^5\) с \(N = 10^7\) итерациями на системе с процессором Intel Core Ultra 5 125H (4P+8E+2LP ядер, 1.2-4.6 ГГц). Тестирование проводилось на 4 потоках для каждой из параллельных реализаций. Замер производился на тесте $task\_run$.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrr}
+\toprule
+\textbf{Версия} & \textbf{Время (с)} & \textbf{Ускорение} \\
+\midrule
+Последовательная & 3,15 & 1,00 \\
+OpenMP (4 потока) & 0,93 & 3,38 \\
+TBB (4 потока) & 0,67 & 4,7 \\
+STL (4 потока) & 1,90 & 1,66 \\
+MPI+OpenMP (2 узла $\times$ 2 потока) & 0,91 & 3,47 \\
+\bottomrule
+\end{tabular}
+\caption{Производительность реализаций}
+\end{table}
+
+\subsection{Выводы}
+\begin{itemize}
+\item Последовательная версия: Время выполнения (в отчёте — 3,15 с) определяется отсутствием параллелизма. Все $N = 10^7$ итераций выполняются последовательно на одном ядре, что ограничивает использование многоядерной архитектуры процессора. Производительность зависит только от частоты ядра и оптимизации кода компилятором.
+\item OpenMP: Ускорение (3,57 в отчёте) достигается благодаря распределению итераций между потоками с минимальными накладными расходами. OpenMP использует директиву \texttt{reduction}, которая эффективно суммирует локальные результаты. Однако производительность может быть ограничена конкуренцией за ресурсы кэша и неравномерным распределением нагрузки между потоками, особенно если генерация случайных чисел или вычисление функции $f(\mathbf{x})$ имеют переменную сложность.
+\item TBB: Лучшее время (0,67 с) и ускорение (3,68) объясняются эффективным планированием задач. TBB использует модель "work-stealing", которая динамически балансирует нагрузку между потоками. Это особенно полезно, если некоторые итерации завершаются быстрее других (например, из-за кэш-промахов или особенностей генератора случайных чисел). Однако инициализация \texttt{thread\_local} генераторов может добавлять небольшие накладные расходы на старте.
+\item STL: Более высокое время (1,90 с) и меньшее ускорение (3,47) связаны с ручным управлением потоками. Разделение итераций на равные части (\texttt{chunk\_size}) не учитывает динамическую нагрузку, и синхронизация через \texttt{join} может приводить к простоям потоков, если один из них завершает работу раньше других. Также отсутствие встроенного механизма редукции требует дополнительной обработки через \texttt{std::accumulate}.
+\item MPI+OpenMP (2 узла × 2 потока): Ускорение (3,47) ниже из-за накладных расходов на коммуникации между узлами. MPI требует передачи локальных сумм через сеть, что добавляет задержки, особенно заметные при небольшом числе узлов (всего 2). Внутри каждого узла OpenMP работает эффективно, но общая производительность ограничена скоростью межузлового обмена данными и синхронизацией через \texttt{boost::mpi::reduce}.
+\end{itemize}
+
+\newpage
+\section{Заключение}
+В ходе данной работы были разработаны и исследованы различные реализации метода Монте-Карло для вычисления многомерных интегралов, что позволило оценить их эффективность в условиях современных вычислительных систем. Была реализована последовательная версия алгоритма, а также несколько параллельных версий с использованием технологий OpenMP, Intel Threading Building Blocks (TBB), стандартной библиотеки потоков C++ (STL) и гибридного подхода на основе MPI и OpenMP. Каждая из этих реализаций была протестирована на примере вычисления интеграла функции $f(\mathbf{x}) = e^{x_1 + x_2 + x_3 + x_4 + x_5}$ в области $[-3, 3]^5$ с использованием $N = 10^7$ итераций. Эксперименты проводились на системе с процессором Intel Core Ultra 5 125H, что позволило оценить производительность в условиях многоядерной архитектуры.
+Результаты экспериментов показали, что параллельные версии, работающие на одном узле (OpenMP, TBB, STL), обеспечивают значительное ускорение по сравнению с последовательной реализацией. Так, последовательная версия завершила выполнение за 3,15 секунды, что объясняется отсутствием параллелизма и последовательной обработкой всех итераций на одном ядре. В то же время параллельные версии на одном узле продемонстрировали ускорение в диапазоне от 1,66 до 4,7 раз. Наилучшую производительность показала реализация с использованием TBB, достигнув времени выполнения 0,67 секунды и ускорения 4,7 благодаря эффективному планированию задач и динамической балансировке нагрузки с использованием модели "work-stealing". OpenMP обеспечила ускорение до 3,38 раз (0,93 секунды), что обусловлено простотой распределения итераций между потоками и минимальными накладными расходами на синхронизацию. Реализация на основе STL оказалась менее эффективной (1,90 секунды, ускорение 1,66), что связано со статическим распределением задач и ручным управлением потоками, приводящим к простоям из-за неравномерной нагрузки. Гибридная версия MPI+OpenMP (2 узла по 2 потока) показала ускорение 3,47 раза (0,91 секунды), однако её эффективность была ограничена накладными расходами на коммуникации между узлами.
+Анализ причин различий в производительности выявил ключевые особенности каждой технологии. Последовательная версия ограничена отсутствием параллелизма, что делает её зависимой только от частоты ядра и оптимизации компилятора. OpenMP эффективно использует многоядерность процессора за счёт автоматического распределения итераций, однако конкуренция за ресурсы кэша может снижать её производительность при увеличении числа потоков. TBB выделяется благодаря динамической балансировке нагрузки, что минимизирует простои потоков и делает эту технологию предпочтительной для задач с потенциально неравномерной вычислительной сложностью итераций. STL уступает из-за отсутствия встроенных механизмов адаптивного распределения задач, что приводит к неэффективному использованию потоков. Гибридная версия MPI+OpenMP демонстрирует потенциал для масштабирования на распределённые системы, но её производительность в текущей конфигурации (2 узла) ограничена задержками межузловых коммуникаций, что особенно заметно при небольшом числе узлов и относительно простых вычислениях.
+Полученные результаты имеют практическую ценность для выбора оптимального подхода к вычислению многомерных интегралов в зависимости от доступных вычислительных ресурсов и требований к производительности. Например, для задач, выполняемых на одном многоядерном процессоре, TBB может быть рекомендован как наиболее эффективное решение. OpenMP подходит для быстрой и простой параллелизации, особенно в случаях, когда требуется минимальная модификация кода. Гибридный подход MPI+OpenMP перспективен для распределённых систем с большим числом узлов, где накладные расходы на коммуникации могут быть компенсированы масштабом вычислений.
+Для дальнейших исследований можно выделить несколько направлений. Во-первых, оптимизация коммуникаций в гибридной версии MPI+OpenMP, например, за счёт уменьшения объёма передаваемых данных или использования асинхронных операций, может повысить её эффективность на распределённых системах. Во-вторых, исследование производительности реализаций на более сложных функциях или областях интегрирования позволит оценить их устойчивость к увеличению вычислительной нагрузки. Наконец, сравнение метода Монте-Карло с другими подходами к численного интегрированию, такими как квази-Монте-Карло или адаптивные квадратурные методы, может дать более полное представление о его применимости в различных сценариях.
+Таким образом, данная работа не только демонстрирует возможности параллельных технологий для ускорения метода Монте-Карло, но и закладывает основу для дальнейших исследований в области высокопроизводительных вычислений многомерных интегралов.
+\newpage
+\section{Приложение}
+
+\subsection{lopatinMonteCarloSeq.cpp}
+\begin{lstlisting}[language=C++]
+#include "seq/lopatin_i_monte_carlo/include/lopatinMonteCarloSeq.hpp"
+
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <ctime>
+#include <random>
+#include <vector>
+
+namespace lopatin_i_monte_carlo_seq {
+
+bool TestTaskSequential::ValidationImpl() {
+  const bool outputs_valid = !task_data->outputs_count.empty() && task_data->outputs_count[0] == 1;
+  const bool inputs_valid = task_data->inputs_count.size() == 2 &&
+                            (task_data->inputs_count[0] % 2 == 0) &&  // odd num of bounds
+                            task_data->inputs_count[1] == 1;          // iterations num
+  return outputs_valid && inputs_valid;
+}
+
+bool TestTaskSequential::PreProcessingImpl() {
+  auto* bounds_ptr = reinterpret_cast<double*>(task_data->inputs[0]);
+  size_t bounds_size = task_data->inputs_count[0];
+  integrationBounds_.resize(bounds_size);
+  std::copy(bounds_ptr, bounds_ptr + bounds_size, integrationBounds_.begin());
+
+  auto* iter_ptr = reinterpret_cast<int*>(task_data->inputs[1]);
+  iterations_ = *iter_ptr;
+  return true;
+}
+
+bool TestTaskSequential::RunImpl() {
+  const size_t d = integrationBounds_.size() / 2;  // dimensions
+
+  std::random_device rd;
+  std::seed_seq seed{rd(), static_cast<unsigned int>(std::time(nullptr))};
+  std::mt19937 rnd(seed);
+  std::uniform_real_distribution<> dis(0.0, 1.0);
+
+  result_ = 0.0;
+  for (int i = 0; i < iterations_; ++i) {
+    std::vector<double> point(d);
+    for (size_t j = 0; j < d; ++j) {
+      const double min = integrationBounds_[2 * j];
+      const double max = integrationBounds_[(2 * j) + 1];
+      point[j] = min + (max - min) * dis(rnd);
+    }
+    result_ += integrand_(point);
+  }
+
+  // volume of integration region
+  double volume = 1.0;
+  for (size_t j = 0; j < d; ++j) {
+    volume *= (integrationBounds_[(2 * j) + 1] - integrationBounds_[2 * j]);
+  }
+  result_ = (result_ / iterations_) * volume;
+
+  return true;
+}
+
+bool TestTaskSequential::PostProcessingImpl() {
+  auto* output_ptr = reinterpret_cast<double*>(task_data->outputs[0]);
+  *output_ptr = result_;
+  return true;
+}
+
+}  // namespace lopatin_i_monte_carlo_seq
+
+\end{lstlisting}
+
+\subsection{lopatinMonteCarloOMP.cpp}
+\begin{lstlisting}[language=C++]
+#include "omp/lopatin_i_monte_carlo/include/lopatinMonteCarloOMP.hpp"
+
+#include <omp.h>
+
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <ctime>
+#include <random>
+#include <vector>
+
+namespace lopatin_i_monte_carlo_omp {
+
+bool TestTaskOMP::ValidationImpl() {
+  const bool outputs_valid = !task_data->outputs_count.empty() && task_data->outputs_count[0] == 1;
+  const bool inputs_valid = task_data->inputs_count.size() == 2 &&
+                            (task_data->inputs_count[0] % 2 == 0) &&  // odd num of bounds
+                            task_data->inputs_count[1] == 1;          // iterations num
+
+  auto* iter_ptr = reinterpret_cast<int*>(task_data->inputs[1]);
+  const int iterations = *iter_ptr;
+  const bool iter_valid = iterations > 0;
+
+  return outputs_valid && inputs_valid && iter_valid;
+}
+
+bool TestTaskOMP::PreProcessingImpl() {
+  auto* bounds_ptr = reinterpret_cast<double*>(task_data->inputs[0]);
+  size_t bounds_size = task_data->inputs_count[0];
+  integrationBounds_.resize(bounds_size);
+  std::copy(bounds_ptr, bounds_ptr + bounds_size, integrationBounds_.begin());
+
+  auto* iter_ptr = reinterpret_cast<int*>(task_data->inputs[1]);
+  iterations_ = *iter_ptr;
+  return true;
+}
+
+bool TestTaskOMP::RunImpl() {
+  const size_t d = integrationBounds_.size() / 2;  // dimensions
+
+  // init random numbers generator
+  std::random_device rd;
+  std::seed_seq seed{rd(), static_cast<unsigned int>(std::time(nullptr))};
+  std::vector<std::mt19937::result_type> seeds(omp_get_max_threads());
+  seed.generate(seeds.begin(), seeds.end());
+
+  // volume of integration region
+  double volume = 1.0;
+  for (size_t j = 0; j < d; ++j) {
+    volume *= (integrationBounds_[(2 * j) + 1] - integrationBounds_[2 * j]);
+  }
+
+  double total_sum = 0.0;
+#pragma omp parallel reduction(+ : total_sum)
+  {
+    // init generator for each thread with unique seed
+    const int tid = omp_get_thread_num();
+    std::mt19937 local_rnd(seeds[tid]);
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+
+#pragma omp for
+    for (int i = 0; i < iterations_; ++i) {
+      std::vector<double> point(d);
+      for (size_t j = 0; j < d; ++j) {
+        const double min = integrationBounds_[2 * j];
+        const double max = integrationBounds_[(2 * j) + 1];
+        point[j] = min + (max - min) * dis(local_rnd);
+      }
+      total_sum += integrand_(point);
+    }
+  }
+
+  result_ = (total_sum / iterations_) * volume;
+
+  return true;
+}
+
+bool TestTaskOMP::PostProcessingImpl() {
+  auto* output_ptr = reinterpret_cast<double*>(task_data->outputs[0]);
+  *output_ptr = result_;
+  return true;
+}
+
+}  // namespace lopatin_i_monte_carlo_omp
+\end{lstlisting}
+
+\subsection{lopatinMonteCarloTBB.cpp}
+\begin{lstlisting}[language=C++]
+#include "tbb/lopatin_i_monte_carlo/include/lopatinMonteCarloTBB.hpp"
+
+#include <tbb/tbb.h>
+
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <ctime>
+#include <functional>
+#include <random>
+#include <vector>
+
+#include "core/util/include/util.hpp"
+#include "oneapi/tbb/parallel_reduce.h"
+#include "oneapi/tbb/task_arena.h"
+
+namespace lopatin_i_monte_carlo_tbb {
+
+bool TestTaskTBB::ValidationImpl() {
+  const bool outputs_valid = !task_data->outputs_count.empty() && task_data->outputs_count[0] == 1;
+  const bool inputs_valid = task_data->inputs_count.size() == 2 &&
+                            (task_data->inputs_count[0] % 2 == 0) &&  // odd num of bounds
+                            task_data->inputs_count[1] == 1;          // iterations count
+
+  auto* iter_ptr = reinterpret_cast<int*>(task_data->inputs[1]);
+  const int iterations = *iter_ptr;
+  const bool iter_valid = iterations > 0;
+
+  bool bounds_valid = true;  // bounds
+  auto* bounds_ptr = reinterpret_cast<double*>(task_data->inputs[0]);
+  if (bounds_ptr[0] >= bounds_ptr[1]) {
+    bounds_valid = false;
+  }
+
+  return outputs_valid && inputs_valid && iter_valid && bounds_valid;
+}
+
+bool TestTaskTBB::PreProcessingImpl() {
+  auto* bounds_ptr = reinterpret_cast<double*>(task_data->inputs[0]);
+  size_t bounds_size = task_data->inputs_count[0];
+  integrationBounds_.resize(bounds_size);
+  std::copy(bounds_ptr, bounds_ptr + bounds_size, integrationBounds_.begin());
+
+  auto* iter_ptr = reinterpret_cast<int*>(task_data->inputs[1]);
+  iterations_ = *iter_ptr;
+  return true;
+}
+
+bool TestTaskTBB::RunImpl() {
+  const size_t d = integrationBounds_.size() / 2;  // dimensions
+
+  // init random numbers generator
+  std::random_device rd;
+  std::seed_seq seed{rd(), static_cast<unsigned int>(std::time(nullptr))};
+  const size_t num_threads = ppc::util::GetPPCNumThreads();
+  std::vector<std::mt19937::result_type> seeds(num_threads);
+  seed.generate(seeds.begin(), seeds.end());
+
+  // volume of integration region
+  double volume = 1.0;
+  for (size_t j = 0; j < d; ++j) {
+    volume *= (integrationBounds_[(2 * j) + 1] - integrationBounds_[2 * j]);
+  }
+
+  // tbb parallel reduction
+  oneapi::tbb::task_arena arena(ppc::util::GetPPCNumThreads());
+  double total_sum = arena.execute([&] {
+    return oneapi::tbb::parallel_reduce(
+        oneapi::tbb::blocked_range<std::size_t>(0, iterations_, iterations_ / arena.max_concurrency()), 0.0,
+        [&](const oneapi::tbb::blocked_range<std::size_t>& range, double sum) {
+          static thread_local std::mt19937 local_rnd;
+          static thread_local bool initialized = false;
+          if (!initialized) {
+            const size_t idx = reinterpret_cast<uintptr_t>(&local_rnd) % num_threads;
+            local_rnd.seed(seeds[idx]);
+            initialized = true;
+          }
+          std::uniform_real_distribution<> dis(0.0, 1.0);
+          std::vector<double> point(d);
+
+          for (size_t i = range.begin(); i < range.end(); ++i) {
+            for (size_t j = 0; j < d; ++j) {
+              const double min = integrationBounds_[2 * j];
+              const double max = integrationBounds_[(2 * j) + 1];
+              point[j] = min + (max - min) * dis(local_rnd);
+            }
+            sum += integrand_(point);
+          }
+          return sum;
+        },
+        std::plus<>());
+  });
+
+  result_ = (total_sum / iterations_) * volume;
+  return true;
+}
+
+bool TestTaskTBB::PostProcessingImpl() {
+  auto* output_ptr = reinterpret_cast<double*>(task_data->outputs[0]);
+  *output_ptr = result_;
+  return true;
+}
+
+}  // namespace lopatin_i_monte_carlo_tbb
+\end{lstlisting}
+
+\subsection{lopatinMonteCarloSTL.cpp}
+\begin{lstlisting}[language=C++]
+#include "stl/lopatin_i_monte_carlo/include/lopatinMonteCarloSTL.hpp"
+
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <ctime>
+#include <numeric>
+#include <random>
+#include <thread>
+#include <vector>
+
+#include "core/util/include/util.hpp"
+
+namespace lopatin_i_monte_carlo_stl {
+
+bool TestTaskSTL::ValidationImpl() {
+  const bool outputs_valid = !task_data->outputs_count.empty() && task_data->outputs_count[0] == 1;
+  const bool inputs_valid = task_data->inputs_count.size() == 2 &&
+                            (task_data->inputs_count[0] % 2 == 0) &&  // odd num of bounds
+                            task_data->inputs_count[1] == 1;          // iterations num
+
+  auto* iter_ptr = reinterpret_cast<int*>(task_data->inputs[1]);
+  const int iterations = *iter_ptr;
+  const bool iter_valid = iterations > 0;
+
+  bool bounds_valid = true;  // bounds
+  auto* bounds_ptr = reinterpret_cast<double*>(task_data->inputs[0]);
+  if (bounds_ptr[0] >= bounds_ptr[1]) {
+    bounds_valid = false;
+  }
+
+  return outputs_valid && inputs_valid && iter_valid && bounds_valid;
+}
+
+bool TestTaskSTL::PreProcessingImpl() {
+  auto* bounds_ptr = reinterpret_cast<double*>(task_data->inputs[0]);
+  size_t bounds_size = task_data->inputs_count[0];
+  integrationBounds_.resize(bounds_size);
+  std::copy(bounds_ptr, bounds_ptr + bounds_size, integrationBounds_.begin());
+
+  auto* iter_ptr = reinterpret_cast<int*>(task_data->inputs[1]);
+  iterations_ = *iter_ptr;
+  return true;
+}
+
+bool TestTaskSTL::RunImpl() {
+  const size_t d = integrationBounds_.size() / 2;  // dimensions
+
+  const int num_threads = ppc::util::GetPPCNumThreads();
+  std::vector<std::thread> threads(num_threads);
+  std::vector<double> partial_sums(num_threads, 0.0);
+  const int chunk_size = iterations_ / num_threads;
+  const int remainder = iterations_ % num_threads;
+
+  // init random numbers generator
+  std::vector<std::mt19937> generators;
+  std::random_device rd;
+  std::seed_seq seed{rd(), static_cast<unsigned int>(std::time(nullptr))};
+  std::vector<std::mt19937::result_type> seeds(num_threads);
+  seed.generate(seeds.begin(), seeds.end());
+  generators.reserve(seeds.size());
+  for (auto& s : seeds) {
+    generators.emplace_back(s);
+  }
+
+  // volume of integration region
+  double volume = 1.0;
+  for (size_t j = 0; j < d; ++j) {
+    volume *= (integrationBounds_[(2 * j) + 1] - integrationBounds_[2 * j]);
+  }
+
+  auto thread_task = [&](int thread_id, int start, int end) {
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+    auto& gen = generators[thread_id];
+    double local_sum = 0.0;
+
+    for (int i = start; i < end; ++i) {
+      std::vector<double> point(d);
+      for (size_t j = 0; j < d; ++j) {
+        const double min = integrationBounds_[2 * j];
+        const double max = integrationBounds_[(2 * j) + 1];
+        point[j] = min + (max - min) * dis(gen);
+      }
+      local_sum += integrand_(point);
+    }
+
+    partial_sums[thread_id] = local_sum;
+  };
+
+  // create and run threads
+  int start = 0;
+  for (int tid = 0; tid < num_threads; ++tid) {
+    const int end = start + chunk_size + (tid < remainder ? 1 : 0);
+    threads[tid] = std::thread(thread_task, tid, start, end);
+    start = end;
+  }
+
+  // waiting for all threads to end their work
+  for (auto& t : threads) {
+    t.join();
+  }
+
+  double total_sum = std::accumulate(partial_sums.begin(), partial_sums.end(), 0.0);
+
+  result_ = (total_sum / iterations_) * volume;
+
+  return true;
+}
+
+bool TestTaskSTL::PostProcessingImpl() {
+  auto* output_ptr = reinterpret_cast<double*>(task_data->outputs[0]);
+  *output_ptr = result_;
+  return true;
+}
+
+}  // namespace lopatin_i_monte_carlo_stl
+
+\end{lstlisting}
+
+\subsection{lopatinMonteCarloALL.cpp}
+\begin{lstlisting}[language=C++]
+#include "all/lopatin_i_monte_carlo/include/lopatinMonteCarloALL.hpp"
+
+#include <omp.h>
+
+#include <algorithm>
+#include <boost/mpi/collectives/broadcast.hpp>
+#include <boost/mpi/collectives/reduce.hpp>
+#include <boost/serialization/vector.hpp>  // NOLINT(*-include-cleaner)
+#include <cmath>
+#include <cstddef>
+#include <ctime>
+#include <functional>
+#include <random>
+#include <vector>
+
+namespace lopatin_i_monte_carlo_all {
+
+bool TestTaskAll::ValidationImpl() {
+  if (world_.rank() == 0) {
+    const bool outputs_valid = !task_data->outputs_count.empty() && task_data->outputs_count[0] == 1;
+    const bool inputs_valid = task_data->inputs_count.size() == 2 &&
+                              (task_data->inputs_count[0] % 2 == 0) &&  // odd num of bounds
+                              task_data->inputs_count[1] == 1;          // iterations num
+
+    auto* iter_ptr = reinterpret_cast<int*>(task_data->inputs[1]);
+    const int iterations = *iter_ptr;
+    const bool iter_valid = iterations > 0;
+    return outputs_valid && inputs_valid && iter_valid;
+  }
+  return true;
+}
+
+bool TestTaskAll::PreProcessingImpl() {
+  if (world_.rank() == 0) {
+    auto* bounds_ptr = reinterpret_cast<double*>(task_data->inputs[0]);
+    size_t bounds_size = task_data->inputs_count[0];
+    integrationBounds_.resize(bounds_size);
+    std::copy(bounds_ptr, bounds_ptr + bounds_size, integrationBounds_.begin());
+
+    auto* iter_ptr = reinterpret_cast<int*>(task_data->inputs[1]);
+    iterations_ = *iter_ptr;
+  }
+  return true;
+}
+
+bool TestTaskAll::RunImpl() {
+  boost::mpi::broadcast(world_, integrationBounds_, 0);
+  boost::mpi::broadcast(world_, iterations_, 0);
+
+  const size_t d = integrationBounds_.size() / 2;  // dimensions
+
+  // integration volume
+  double volume = 1.0;
+  for (size_t j = 0; j < d; ++j) {
+    volume *= (integrationBounds_[(2 * j) + 1] - integrationBounds_[2 * j]);
+  }
+
+  // distributing iterations
+  const int world_size = world_.size();
+  const int world_rank = world_.rank();
+  const int local_iterations = (iterations_ / world_size) + (world_rank < (iterations_ % world_size) ? 1 : 0);
+
+  double local_sum = 0.0;
+#pragma omp parallel reduction(+ : local_sum)
+  {
+    // init random numbers generator
+    std::random_device rd;
+    std::seed_seq seed{rd(), static_cast<unsigned>(std::time(nullptr)), static_cast<unsigned>(world_rank),
+                       static_cast<unsigned>(omp_get_thread_num())};
+    std::mt19937 local_rnd(seed);
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+
+#pragma omp for
+    for (int i = 0; i < local_iterations; ++i) {
+      std::vector<double> point(d);
+      for (size_t j = 0; j < d; ++j) {
+        const double min = integrationBounds_[2 * j];
+        const double max = integrationBounds_[(2 * j) + 1];
+        point[j] = min + (max - min) * dis(local_rnd);
+      }
+      local_sum += integrand_(point);
+    }
+  }
+
+  double global_sum = 0.0;
+  boost::mpi::reduce(world_, local_sum, global_sum, std::plus<>(), 0);
+
+  if (world_rank == 0) {
+    result_ = (global_sum / iterations_) * volume;
+  }
+
+  return true;
+}
+
+bool TestTaskAll::PostProcessingImpl() {
+  if (world_.rank() == 0) {
+    auto* output_ptr = reinterpret_cast<double*>(task_data->outputs[0]);
+    *output_ptr = result_;
+  }
+  return true;
+}
+
+}  // namespace lopatin_i_monte_carlo_all
+\end{lstlisting}
+
+\end{document}
