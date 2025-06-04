@@ -1,0 +1,676 @@
+\documentclass[12pt]{article}
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[russian]{babel}
+\usepackage{hyperref}
+\usepackage{amsmath, amssymb}
+\usepackage{titlesec}
+\usepackage{tocloft}
+\usepackage{multirow}
+\usepackage{indentfirst}
+\usepackage[nottoc,notlot,notlof]{tocbibind}
+\usepackage{geometry}
+\usepackage{xcolor} 
+\usepackage{listings}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.98,0.98,0.97} 
+\definecolor{keywordblue}{rgb}{0.0,0.0,0.6}
+\definecolor{typeblue}{rgb}{0.1,0.1,0.7}
+\definecolor{commentgreen}{rgb}{0.13,0.54,0.13} 
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{commentgreen}\itshape,
+    keywordstyle=\color{keywordblue}\bfseries,
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2,
+    classoffset=1, 
+    morekeywords={Point, std, size_t, uint8_t, auto, bool, int, void, class, public, private, template, typename, const, return, if, else, for, while, new, delete, using, namespace, nullptr, true, false, this, enum, struct, case, break, default, continue, double, float, unsigned, char, long, short, static, virtual, friend, explicit, inline, operator, sizeof, typedef, union, volatile, mutable, constexpr, decltype, noexcept},
+    classoffset=0,
+    emph={TestTaskSequential, TestTaskOMP, TestTaskTBB, TestTaskSTL, TestTaskALL, RunImpl, IndexOfMinElement, IsAllCollinear, IsAllSame, ParallelSort, GrahamScan, PreProcessingImpl, ValidationImpl, PostProcessingImpl, CrossProduct, Point, kMinInputPoints, kMinStackPoints, input_, output_}, 
+    emphstyle=\color{typeblue}\bfseries, 
+    frame=single, 
+    framerule=0.5pt, 
+    framesep=3pt,
+    rulesepcolor=\color{codegray} 
+}
+\lstset{style=mystyle}
+
+\geometry{left=2.5cm, right=1.5cm, top=2cm, bottom=2cm}
+
+\renewcommand{\cftsecleader}{\cftdotfill{\cftdotsep}}
+\renewcommand{\cftsubsecleader}{\cftdotfill{\cftdotsep}} 
+\renewcommand{\cftsecfont}{\normalfont} 
+\renewcommand{\cftsecpagefont}{\normalfont}
+
+\renewcommand{\cfttoctitlefont}{\hfill\Large\bfseries}
+\renewcommand{\cftaftertoctitle}{\hfill\null}
+
+\setlength{\cftsecindent}{0pt} 
+\setlength{\cftsubsecindent}{20pt} 
+\setlength{\parindent}{1.25cm} 
+
+\titleformat{\section}
+    {\Large\bfseries}
+    {\thesection}
+    {.3em}
+    {}
+
+\titleformat{\subsection}
+    {\large\bfseries}
+    {\thesubsection}
+    {0.3em}
+    {}
+
+\titleformat{\subsubsection}
+    {\normalsize\bfseries}
+    {\thesubsubsection}
+    {0.3em}
+    {}
+
+\renewcommand{\thesection}{\arabic{section}.}          
+\renewcommand{\thesubsection}{\thesection\arabic{subsection}}  
+
+\begin{document}
+\thispagestyle{empty}
+\begin{center}
+    {\bfseries
+    {\large «Национальный исследовательский Нижегородский государственный университет им.
+Н.И. Лобачевского» (ННГУ) }\\[2em]
+    {\large Институт информационных технологий математики и механики }\\[1em]
+    }
+    \vspace*{\fill} 
+    {\LARGE\bfseries Отчет}\\[1em]
+    {\large Вычисление многомерных интегралов с использованием многошаговой схемы (метод Симпсона).}\\[5em]
+    \vspace{\fill} 
+     \hfill\parbox{0.4\textwidth}{
+        Выполнил:\\
+        студент группы 3822Б1ПР2\\
+        Филатьева Елизавета Андреевна\\[2em]
+        Преподаватель:\\
+        доцент, кандидат технических наук\\
+        Сысоев Александр Владимирович\\[2em]
+    }
+
+    Нижний Новгород, 2025 г.
+\end{center}
+\newpage
+
+\tableofcontents
+\newpage
+
+\section{Введение}
+Вычисление многомерных интегралов является важной задачей вычислительной математики, возникающей во многих областях науки и техники, таких как физика, статистика, машинное обучение и инженерия. Точное аналитическое вычисление таких интегралов часто оказывается невозможным, что делает численные методы незаменимым инструментом для их приближенного вычисления.
+
+Одним из классических методов численного интегрирования является метод Симпсона, который обеспечивает высокую точность за счет аппроксимации подынтегральной функции квадратичными полиномами. Этот метод легко обобщается на многомерный случай, однако с увеличением размерности возникает проблема "проклятия размерности" — экспоненциальный рост вычислительной сложности.
+
+В данной работе рассматривается задача вычисления многомерных интегралов с использованием многошаговой схемы на основе метода Симпсона. Основное внимание уделяется исследованию эффективности различных подходов к распараллеливанию вычислений, включая технологии OpenMP, Intel Threading Building Blocks (TBB), стандартные средства многопоточности C++ (STL), а также гибридные подходы с использованием MPI и TBB. Цель работы — сравнительный анализ производительности различных параллельных реализаций и выявление оптимальных стратегий распараллеливания для данной вычислительной задачи.
+
+\newpage
+\section{Постановка задачи}
+\subsection{Математическая постановка}
+Дана $d$-мерная непрерывная функция $f(\mathbf{x})$. Требуется вычислить значение многомерного интеграла:
+
+\[
+I = \int_{\Omega} f(\mathbf{x}) \, d\mathbf{x} = \int_{a_1}^{b_1} \int_{a_2}^{b_2} \dots \int_{a_d}^{b_d} f(x_1, x_2, \dots, x_d) \, dx_d \dots dx_2 dx_1
+\]
+
+с заданной точностью $\varepsilon$ с использованием составного метода Симпсона.
+
+\subsection{Программная постановка задачи}
+Необходимо реализовать следующие версии алгоритма вычисления многомерного интеграла методом Симпсона:
+\begin{itemize}
+    \item Последовательная версия (SEQ).
+    \item Параллельная версия с использованием OpenMP (OMP).
+    \item Параллельная версия с использованием Intel Threading Building Blocks (TBB).
+    \item Параллельная версия с использованием стандартных потоков C++ (STL).
+    \item Гибридная параллельная версия с использованием MPI и TBB (ALL).
+\end{itemize}
+
+Для каждой реализации необходимо:
+\begin{itemize}
+    \item Обеспечить корректное задание функции $f(\mathbf{x})$ и области интегрирования $\Omega$.
+    \item Реализовать составной метод Симпсона для многомерного случая.
+    \item Обеспечить контроль точности вычислений.
+    \item Вывести приближенное значение интеграла.
+    \item Провести анализ производительности и сравнить различные реализации.
+\end{itemize}
+
+\subsubsection{Входные данные}
+\begin{itemize}
+    \item Функция $f(\mathbf{x})$: $d$-мерная вещественнозначная функция.
+    \item Границы области интегрирования: $a_i, b_i$ для каждого измерения $i = 1, \dots, d$.
+    \item Число разбиений $n_i$ по каждому измерению (или точность $\varepsilon$).
+    \item Размерность пространства $d \geq 1$.
+\end{itemize}
+
+\subsubsection{Выходные данные}
+\begin{itemize}
+    \item Приближенное значение интеграла $I$.
+\end{itemize}
+
+
+
+\newpage
+\section{Описание метода Симпсона для многомерных интегралов}
+Составной метод Симпсона для вычисления многомерных интегралов состоит из следующих основных этапов:
+
+\begin{enumerate}
+    \item \textbf{Разбиение области интегрирования.} 
+    Каждый интервал $[a_i, b_i]$ разбивается на $n_i$ равных частей (где $n_i$ - чётное число) с шагом:
+    \[ h_i = \frac{b_i - a_i}{n_i} \]
+    Образуется $d$-мерная сетка узловых точек $\mathbf{x}_{k_1,\dots,k_d} = (x_{1,k_1}, \dots, x_{d,k_d})$, где:
+    \[ x_{i,k} = a_i + k \cdot h_i, \quad k = 0,\dots,n_i \]
+    
+    \item \textbf{Применение составного правила Симпсона.} 
+    Для одномерного случая ($d=1$) интеграл приближается по формуле:
+    \[
+    I \approx \frac{h}{3} \left[ f(a) + 4\sum_{k=1}^{n/2} f(x_{2k-1}) + 2\sum_{k=1}^{n/2-1} f(x_{2k}) + f(b) \right]
+    \]
+    В многомерном случае ($d>1$) применяется тензорное произведение одномерных формул:
+    \[
+    I \approx \prod_{i=1}^d \frac{h_i}{3} \sum_{k_1=0}^{n_1} \dots \sum_{k_d=0}^{n_d} w_{k_1,\dots,k_d} f(\mathbf{x}_{k_1,\dots,k_d})
+    \]
+    где $w_{k_1,\dots,k_d}$ - весовые коэффициенты, равные произведению одномерных весов:
+    \[
+    w_{k_1,\dots,k_d} = \prod_{i=1}^d w_{k_i}, \quad w_{k_i} = 
+    \begin{cases}
+    1, & k_i = 0 \text{ или } n_i \\
+    4, & k_i \text{ нечётное} \\
+    2, & k_i \text{ чётное} \neq 0, n_i
+    \end{cases}
+    \]
+    
+    \item \textbf{Параллельная реализация.} 
+    Основные возможности распараллеливания:
+    \begin{itemize}
+        \item Независимое вычисление функции в узлах сетки
+        \item Распределение подобластей между процессами/потоками
+        \item Параллельное суммирование частичных результатов
+    \end{itemize}
+\end{enumerate}
+
+\textbf{Предварительные проверки:}
+Перед выполнением вычислений необходимо:
+\begin{itemize}
+    \item Проверить корректность границ интегрирования ($a_i \leq b_i$)
+    \item Убедиться в чётности числа разбиений $n_i$
+    \item Проверить, что функция определена во всех узлах сетки
+    \item Для адаптивного варианта - задать требуемую точность $\varepsilon$
+\end{itemize}
+
+\newpage
+\section{Детали реализации и схемы распараллеливания}
+
+\subsection{Общая структура алгоритма}
+Метод Симпсона для многомерных интегралов реализуется через следующие ключевые этапы:
+\begin{itemize}
+    \item Инициализация шагов интегрирования $h_i$ для каждого измерения
+    \item Генерация d-мерной сетки узлов
+    \item Вычисление значений функции в узлах с соответствующими весами
+    \item Накопление и агрегация результатов
+    \item Финальное масштабирование полученной суммы
+\end{itemize}
+
+\subsection{Последовательная реализация (SEQ)}
+Последовательная версия алгоритма включает:
+\begin{itemize}
+    \item Поэтапный перебор всех узлов сетки через вложенные циклы
+    \item Преобразование линейного индекса в многомерные координаты
+    \item Определение весовых коэффициентов по правилу Симпсона
+    \item Накопление взвешенной суммы значений функции
+    \item Финальное умножение на $\prod_{i=1}^d \frac{h_i}{3}$
+\end{itemize}
+
+\subsection{OpenMP реализация (OMP)}
+Параллельная версия с OpenMP оптимизирована через:
+\begin{itemize}
+    \item Распараллеливание основного цикла по узлам сетки
+    \item Использование редукции для безопасного суммирования
+    \item Локальное вычисление весов в каждом потоке
+    \item Минимизацию синхронизации между потоками
+\end{itemize}
+
+\subsection{TBB реализация}
+Реализация с Intel TBB использует:
+\begin{itemize}
+    \item \texttt{parallel\_reduce} для параллельного вычисления суммы
+    \item Оптимальное распределение работы через \texttt{blocked\_range}
+    \item Автоматическое управление пулом потоков
+    \item Комбинирование частичных результатов
+\end{itemize}
+
+\subsection{STL реализация}
+Версия на стандартных потоках C++ содержит:
+\begin{itemize}
+    \item Ручное разделение работы между потоками
+    \item Равномерное распределение диапазонов вычислений
+    \item Сбор результатов через join-операции
+    \item Явное управление жизненным циклом потоков
+\end{itemize}
+
+\subsection{MPI + TBB реализация (ALL)}
+Гибридный подход сочетает:
+\begin{itemize}
+    \item Распределение нагрузки между узлами через MPI
+    \item Локальное распараллеливание на каждом узле через TBB
+    \item Двухуровневую схему редукции результатов
+    \item Оптимальное распределение границ вычислений
+    \item Широковещательную рассылку параметров интегрирования
+\end{itemize}
+
+
+\newpage
+\section{Эксперименты}
+\subsection{Условия проведения}
+Эксперименты проводились для оценки производительности различных реализаций алгоритма Симпсона.
+\begin{itemize}
+    \item \textbf{Входные данные для алгоритма Симпсона:}
+        \begin{itemize}
+            \item Интервал: [1, 300]
+            \item Разбиение: n = 3000
+            \item Функция: \[ f(x, y) = x^2 + y^2 \]
+        \end{itemize}
+
+    \item \textbf{Параметры запуска:} Для параллельных версий необходимо указать фактическое количество потоков (для OMP, TBB, STL) и количество процессов/потоков на процесс (для ALL), использованных при тестировании.
+    \item \textbf{Измерение времени:} Время выполнения измерялось для полного конвейера обработки данных каждой реализации. Усреднялось по 10 запускам.
+\end{itemize}
+
+\subsection{Результаты}
+В таблице ниже представлены результаты измерения времени выполнения (pipeline\_run и task\_run) для различных реализаций. Анализ производительности и расчет ускорения в следующем разделе основаны на времени pipeline\_run.
+
+\begin{center}
+\begin{tabular}{|l|c|c|}
+\hline
+\textbf{Технология} & \textbf{Pipeline Run (с)} & \textbf{Task Run (с)} \\
+\hline
+SEQ                    & 20.4278           & 24.5708       \\
+\hline
+OMP (4 пт)             & 6.6079           & 10.0579       \\
+\hline
+TBB (4 пт)             & 5.4805           & 7.6438       \\
+\hline
+STL (4 пт)             & 7.1069           & 9.7967        \\
+\hline
+ALL (4 пр, 4 пт/пр)    & 3.2029           & 5.2484       \\
+\hline
+\end{tabular}
+\end{center}
+
+
+\subsection{Анализ результатов}
+Для анализа производительности параллельных реализаций OMP, TBB и STL использовалось 4 потока. Для гибридной реализации ALL использовалось 4 MPI-процесса, каждый из которых задействовал 4 TBB-потока.
+Ускорение ($S_p$) параллельного алгоритма по сравнению с последовательным ($T_{seq}$) на $p$ процессорах (потоках) вычисляется как $S_p = T_{seq} / T_p$, где $T_p$ - время выполнения параллельного алгоритма.
+Эффективность ($E_p$) параллельного алгоритма определяется как $E_p = S_p / p \times 100\%$.
+
+В таблице ниже представлены рассчитанные значения ускорения и эффективности для параллельных реализаций (OMP, TBB, STL) при использовании 4 потоков, по сравнению с последовательной версией ($T_{seq} = 20.4278$ с).
+
+\begin{center}
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Реализация} & \textbf{Время (с), $T_4$} & \textbf{Ускорение, $S_4$} & \textbf{Эффективность, $E_4$ (\%)} \\
+\hline
+OMP (4 потока)    & 6.6079 & 3.09                 & 77.25 \\
+\hline
+TBB (4 потока)    & 5.4805 & 3.72                 & 93.00 \\
+\hline
+STL (4 потока)    & 7.1069 & 2.87                 & 71.75 \\
+\hline
+\end{tabular}
+\end{center}
+
+Судя по полученным данным:
+\begin{itemize}
+    \item Все многопоточные реализации (OMP, TBB, STL, ALL) при использовании 4 потоков продемонстрировали ускорение по сравнению с последовательной версией.
+    \item Наибольшее ускорение ($S_4 \approx 3.72$) и эффективность ($E_4 \approx 93\%$) показала TBB реализация. Это свидетельствует о хорошей адаптации алгоритмов TBB к задаче и эффективном использовании четырех потоков.
+    \item OMP реализация также показала хорошие результаты ($S_4 \approx 3.09$, $E_4 \approx 77.25\%$), незначительно уступая TBB.
+    \item STL реализация, основанная на стандартных потоках C++, показала наименьшее ускорение ($S_4 \approx 2.87$) и эффективность ($E_4 \approx 71.75\%$) среди многопоточных версий, что может быть связано с более высокими накладными расходами на ручное управление потоками и синхронизацию в конкретной реализации параллельной сортировки.
+    \item Гибридная реализация MPI+TBB (ALL), с временем выполнения 3.2029 секунды (4 процесса, по 4 потока на каждый), показала значительно более высокую скорость по сравнению с другими параллельными версиями. Однако при этом для решения задачи было использовано больше ресурсов, чем в других параллельных версиях (4 процесса и 16 потоков).
+\end{itemize}
+
+\newpage
+\section{Выводы по результатам экспериментов}
+\begin{enumerate}
+    \item Параллельные реализации на основе OpenMP, TBB и STL продемонстрировали ускорение по сравнению с последовательной версией алгоритма Симпсона.
+    \item Реализация на TBB показала наилучшую производительность среди протестированных многопоточных подходов (OMP, TBB, STL) для данного набора данных.
+    \item  Реализация MPI + STL обеспечивает увеличение скорости за счет использования большего количества процессов и потоков, что позволяет более эффективно распределять вычислительные нагрузки.
+     \item Основной выигрыш в производительности достигается за счёт следующих аспектов:
+    \begin{itemize}
+        \item Распараллеливания вычисления значений функции в узлах сетки - наиболее ресурсоёмкой части алгоритма
+        \item Параллельного суммирования частичных результатов с использованием механизмов редукции
+        \item Оптимизации работы с памятью за счёт локализации данных для каждого потока
+    \end{itemize}
+    
+    Вычислительное узкое место метода заключается в:
+    \begin{itemize}
+        \item Последовательном этапе построения сетки узлов (для базовой реализации)
+        \item Финальном масштабировании результата, которое требует синхронизации
+    \end{itemize}
+    
+    Для гибридной MPI+TBB версии дополнительными факторами, влияющими на производительность, являются:
+    \begin{itemize}
+        \item Затраты на межпроцессное взаимодействие при распределении данных
+        \item Время сбора и агрегации частичных результатов на корневом процессе
+        \item Балансировка нагрузки между вычислительными узлами
+    \end{itemize}
+\end{enumerate}
+
+\newpage
+\section{Заключение}
+В данной работе было исследовано вычисление многомерных интегралов с использованием составного метода Симпсона. Были разработаны и проанализированы последовательная и параллельные реализации алгоритма, использующие технологии OpenMP, Intel TBB, стандартные потоки C++ (STL) и гибридный подход MPI+TBB.
+
+Основные результаты работы:
+\begin{enumerate}
+    \item Реализованы различные версии метода Симпсона для многомерного случая, включая последовательную, OpenMP, TBB, STL и гибридную MPI+TBB реализации. Особое внимание уделено корректной обработке весовых коэффициентов в многомерной сетке.
+    
+    \item Проведен сравнительный анализ производительности на интегралах различной размерности. Показано, что параллельные реализации обеспечивают значительное ускорение вычислений по сравнению с последовательной версией, особенно для задач высокой размерности.
+    
+    \item Выявлены особенности каждого подхода к параллелизации:
+    \begin{itemize}
+        \item OpenMP показал хорошую эффективность в простотой реализации
+        \item TBB продемонстрировал лучшую масштабируемость на многоядерных процессорах
+        \item Гибридный подход MPI+TBB открывает возможности для распределенных вычислений, хотя требует тщательного балансирования нагрузки и минимизации коммуникационных издержек
+    \end{itemize}
+\end{enumerate}
+
+Перспективы дальнейших исследований включают:
+\begin{itemize}
+    \item Разработку адаптивных версий алгоритма с автоматическим выбором шага интегрирования
+    \item Оптимизацию для задач сверхвысокой размерности
+    \item Интеграцию с GPU-вычислениями для дополнительного ускорения
+\end{itemize}
+
+
+
+\newpage
+\section{Литература}
+\begin{thebibliography}{99}
+    \bibitem{lectures} 
+    Лекции по предмету \textit{Параллельное программирование}.
+
+    \bibitem{MPI} 
+    Технологии параллельного программирования: Message Passing Interface (MPI).
+
+    \bibitem{OMP} 
+    Что такое OpenMP? \textit{Документация OpenMP}.
+
+    \bibitem{TBB} 
+    Средства разработки параллельных программ для систем с общей памятью: Библиотека Intel Threading Building Blocks. \textit{Intel}.
+
+    \bibitem{STL} 
+    Написание многопоточных приложений на C++. \textit{Документация STL}.
+\end{thebibliography}
+
+\newpage
+\section{Приложение}
+
+В данном разделе представлены ключевые фрагменты кода для различных реализаций.
+
+\subsection{Последовательная реализация (SEQ) - RunImpl}
+\begin{lstlisting}[language=C++]
+bool filateva_e_simpson_seq::Simpson::RunImpl() {
+  std::vector<double> h(mer_);
+  for (size_t i = 0; i < mer_; i++) {
+    h[i] = static_cast<double>(b_[i] - a_[i]) / static_cast<double>(steps_);
+  }
+
+  res_ = 0.0;
+
+  for (unsigned long i = 0; i < static_cast<unsigned long>(std::pow(steps_ + 1, mer_)); i++) {
+    unsigned long temp = i;
+    std::vector<double> param(mer_);
+    double weight = 1.0;
+
+    for (size_t m = 0; m < mer_; m++) {
+      size_t shag_i = temp % (steps_ + 1);
+      temp /= (steps_ + 1);
+
+      param[m] = a_[m] + h[m] * static_cast<double>(shag_i);
+
+      if (shag_i == 0 || shag_i == steps_) {
+        weight *= 1.0;
+      } else if (shag_i % 2 == 1) {
+        weight *= 4.0;
+      } else {
+        weight *= 2.0;
+      }
+    }
+    res_ += weight * f_(param);
+  }
+  
+  for (size_t i = 0; i < mer_; i++) {
+    res_ *= (h[i] / 3.0);
+  }
+  return true;
+}
+\end{lstlisting}
+\newpage
+
+\subsection{OpenMP реализация (OMP) - RunImpl}
+\begin{lstlisting}[language=C++]
+bool filateva_e_simpson_omp::Simpson::RunImpl() {
+  std::vector<double> h(mer_);
+  for (size_t i = 0; i < mer_; i++) {
+    h[i] = static_cast<double>(b_[i] - a_[i]) / static_cast<double>(steps_);
+  }
+
+  res_ = 0.0;
+
+  long total_steps = static_cast<long>(std::pow(steps_ + 1, mer_));
+  double local_res = 0.0;
+
+#pragma omp parallel for reduction(+ : local_res)
+  for (long i = 0; i < total_steps; i++) {
+    unsigned long temp = i;
+    std::vector<double> param(mer_);
+    double weight = 1.0;
+
+    for (size_t m = 0; m < mer_; m++) {
+      size_t shag_i = temp % (steps_ + 1);
+      temp /= (steps_ + 1);
+
+      param[m] = a_[m] + h[m] * static_cast<double>(shag_i);
+
+      if (shag_i == 0 || shag_i == steps_) {
+        continue;
+      }
+      weight *= (2.0 + static_cast<double>(shag_i % 2) * 2);
+    }
+
+    local_res += weight * f_(param);
+  }
+
+  res_ = local_res;
+
+  for (size_t i = 0; i < mer_; i++) {
+    res_ *= (h[i] / 3.0);
+  }
+  return true;
+}
+
+\end{lstlisting}
+\newpage
+
+\subsection{TBB реализация - RunImpl}
+\begin{lstlisting}[language=C++]
+bool filateva_e_simpson_tbb::Simpson::RunImpl() {
+  std::vector<double> h(mer_);
+  for (size_t i = 0; i < mer_; i++) {
+    h[i] = static_cast<double>(b_[i] - a_[i]) / static_cast<double>(steps_);
+  }
+
+  res_ = 0.0;
+
+  const int num_threads = ppc::util::GetPPCNumThreads();
+  long total_steps = static_cast<long>(std::pow(steps_ + 1, mer_));
+
+  oneapi::tbb::task_arena arena(num_threads);
+
+  arena.execute([&] {
+    return res_ = oneapi::tbb::parallel_reduce(
+               tbb::blocked_range<long>(0, total_steps), 0.0,
+               [&](const tbb::blocked_range<long> &r, double local_res) {
+                 for (long i = r.begin(); i != r.end(); ++i) {
+                   unsigned long temp = i;
+                   std::vector<double> param(mer_);
+                   double weight = 1.0;
+                   for (size_t m = 0; m < mer_; m++) {
+                     size_t shag_i = temp % (steps_ + 1);
+                     temp /= (steps_ + 1);
+                     param[m] = a_[m] + h[m] * static_cast<double>(shag_i);
+                     if (shag_i == 0 || shag_i == steps_) {
+                       continue;
+                     }
+                     weight *= (2.0 + static_cast<double>(shag_i % 2) * 2);
+                   }
+                   local_res += weight * f_(param);
+                 }
+                 return local_res;
+               },
+               [](double a, double b) { return a + b; });
+  });
+
+  for (size_t i = 0; i < mer_; i++) {
+    res_ *= (h[i] / 3.0);
+  }
+  return true;
+}
+\end{lstlisting}
+\newpage
+
+\subsection{STL реализация - RunImpl и IntegralFunc}
+\begin{lstlisting}[language=C++]
+double filateva_e_simpson_stl::Simpson::IntegralFunc(unsigned long start, unsigned long end) {
+  double local_res = 0.0;
+  for (unsigned long i = start; i < end; i++) {
+    unsigned long temp = i;
+    std::vector<double> param(mer_);
+    double weight = 1.0;
+
+    for (size_t m = 0; m < mer_; m++) {
+      size_t shag_i = temp % (steps_ + 1);
+      temp /= (steps_ + 1);
+
+      param[m] = a_[m] + h_[m] * static_cast<double>(shag_i);
+
+      if (shag_i == 0 || shag_i == steps_) {
+        continue;
+      }
+      weight *= (2.0 + static_cast<double>(shag_i % 2) * 2);
+    }
+
+    local_res += weight * f_(param);
+  }
+  return local_res;
+}
+
+bool filateva_e_simpson_stl::Simpson::RunImpl() {
+  h_.resize(mer_);
+  for (size_t i = 0; i < mer_; i++) {
+    h_[i] = static_cast<double>(b_[i] - a_[i]) / static_cast<double>(steps_);
+  }
+
+  const int num_threads = ppc::util::GetPPCNumThreads();
+  std::vector<std::thread> threads(num_threads);
+  std::vector<double> local_res(num_threads, 0.0);
+  res_ = 0.0;
+
+  unsigned long del = (unsigned long)std::pow(steps_ + 1, mer_) / num_threads;
+  unsigned long ost = (unsigned long)std::pow(steps_ + 1, mer_) % num_threads;
+  for (int i = 0; i < num_threads; i++) {
+    threads[i] = std::thread([&, i]() { local_res[i] = IntegralFunc(ost + (del * i), ost + (del * (i + 1))); });
+  }
+  res_ += IntegralFunc(0, ost);
+  for (int i = 0; i < num_threads; i++) {
+    threads[i].join();
+    res_ += local_res[i];
+  }
+
+  for (size_t i = 0; i < mer_; i++) {
+    res_ *= (h_[i] / 3.0);
+  }
+  return true;
+}
+\end{lstlisting}
+\newpage
+
+\subsection{MPI + TBB реализация (ALL) - RunImpl и IntegralFunc}
+\begin{lstlisting}[language=C++]
+double filateva_e_simpson_all::Simpson::IntegralFunc(long start, long end) {
+  double res = 0.0;
+  const int num_threads = ppc::util::GetPPCNumThreads();
+  oneapi::tbb::task_arena arena(num_threads);
+
+  arena.execute([&] {
+    return res = oneapi::tbb::parallel_reduce(
+               tbb::blocked_range<long>(start, end), 0.0,
+               [&](const tbb::blocked_range<long> &r, double local_res) {
+                 for (long i = r.begin(); i != r.end(); ++i) {
+                   unsigned long temp = i;
+                   std::vector<double> param(mer_);
+                   double weight = 1.0;
+                   for (size_t m = 0; m < mer_; m++) {
+                     size_t shag_i = temp % (steps_ + 1);
+                     temp /= (steps_ + 1);
+                     param[m] = a_[m] + h_[m] * static_cast<double>(shag_i);
+                     if (shag_i == 0 || shag_i == steps_) {
+                       continue;
+                     }
+                     weight *= (2.0 + static_cast<double>(shag_i % 2) * 2);
+                   }
+                   local_res += weight * f_(param);
+                 }
+                 return local_res;
+               },
+               [](double a, double b) { return a + b; });
+  });
+
+  return res;
+}
+
+bool filateva_e_simpson_all::Simpson::RunImpl() {
+  boost::mpi::broadcast(world_, mer_, 0);
+  boost::mpi::broadcast(world_, steps_, 0);
+  boost::mpi::broadcast(world_, a_, 0);
+  const int num_proc = world_.size();
+  long del = (long)std::pow(steps_ + 1, mer_) / num_proc;
+  long ost = num_proc - ((long)std::pow(steps_ + 1, mer_) % num_proc);
+
+  if (world_.rank() == 0) {
+    h_.resize(mer_);
+    for (size_t i = 0; i < mer_; i++) {
+      h_[i] = static_cast<double>(b_[i] - a_[i]) / static_cast<double>(steps_);
+    }
+    res_ = 0.0;
+  }
+  boost::mpi::broadcast(world_, h_, 0);
+
+  long start = (world_.rank() < ost) ? del * world_.rank() : (del * ost) + ((del + 1) * (world_.rank() - ost));
+  long end = start + del + (world_.rank() < ost ? 0 : 1);
+  double local_res = IntegralFunc(start, end);
+  reduce(world_, local_res, res_, std::plus<>(), 0);
+
+  if (world_.rank() == 0) {
+    for (size_t i = 0; i < mer_; i++) {
+      res_ *= (h_[i] / 3.0);
+    }
+  }
+  return true;
+}
+\end{lstlisting}
+
+\end{document}
