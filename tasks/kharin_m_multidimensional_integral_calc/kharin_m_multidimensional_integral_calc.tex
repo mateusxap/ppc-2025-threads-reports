@@ -1,0 +1,884 @@
+\documentclass[12pt]{article}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[russian]{babel}
+
+\usepackage{amsmath,amssymb}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{hyperref}
+\geometry{left=2cm,right=2cm,top=2cm,bottom=2cm}
+
+\lstset{
+  basicstyle=\small\ttfamily,
+  breaklines=true,
+  tabsize=2,
+  language=C++,
+  numbers=left,
+  numberstyle=\tiny
+}
+
+\begin{document}
+
+\begin{titlepage}
+    \begin{center}
+        \large
+        \textbf{ННГУ им. Лобачевского / ИИТММ / ПМИ}\\[0.5cm]
+
+        \vspace{4cm}
+        \textbf{\Large Отчёт по выполнению задания}\\
+        \textbf{\large «Параллельное вычисление многомерных интегралов методом прямоугольников»}\\[3cm] % MODIFIED
+
+        \vspace{3cm}
+        \textbf{Выполнил:}\\
+        студент группы 3822Б1ПМоп3 \\
+        \textit{Харин Матвей Александрович}\\[1cm]
+
+        \textbf{Преподаватель:}\\
+        \textit{Сысоев Александр Владимирович, доцент}\\[2cm]
+
+        \vfill
+        \textbf{Нижний Новгород, 2025 г.}
+    \end{center}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+\section{Введение}
+Вычисление многомерных интегралов является фундаментальной задачей во многих областях науки и техники, включая физику, экономику, статистику и инженерное дело. Метод прямоугольников — один из простейших численных методов для аппроксимации определённых интегралов. Его суть заключается в замене подынтегральной функции на кусочно-постоянную функцию, где значение на каждом элементарном отрезке (или объёме в многомерном случае) равно значению функции в одной из точек этого отрезка (например, левой, правой или средней). В данном отчёте рассматривается применение этого метода для многомерных интегралов, где область интегрирования разбивается на гиперпрямоугольники, и интеграл аппроксимируется суммой объёмов этих гиперпрямоугольников, умноженных на значение функции в выбранной точке каждого из них. Несмотря на свою простоту, метод прямоугольников может быть вычислительно затратным для больших размерностей и мелких сеток, что делает его хорошим кандидатом для параллельной реализации.
+
+\section{Цель и задачи}
+\subsection*{Цель работы}
+Реализовать и сравнить несколько версий параллельного алгоритма вычисления многомерных интегралов методом прямоугольников: SEQ, OpenMP, TBB, STL Threads, MPI+STL.
+
+\subsection*{Задачи}
+\begin{itemize}
+  \item Реализовать последовательный вариант алгоритма
+  \item Реализовать четыре параллельных варианта
+  \item Сравнить производительность и масштабируемость
+  \item Сделать выводы о наиболее эффективном подходе
+\end{itemize}
+
+\section{Математическая формулировка метода прямоугольников для многомерных интегралов}
+Рассмотрим многомерный интеграл вида:
+\[ I = \int_{a_d}^{b_d} \dots \int_{a_1}^{b_1} f(x_1, x_2, \dots, x_d) \,dx_1 \,dx_2 \dots \,dx_d \]
+где $f(x_1, x_2, \dots, x_d)$ — подынтегральная функция $d$ переменных, а интегрирование производится по гиперпрямоугольнику $R = [a_1, b_1] \times [a_2, b_2] \times \dots \times [a_d, b_d]$.
+
+Для численного вычисления методом прямоугольников, каждый интервал $[a_i, b_i]$ разбивается на $N_i$ равных частей длиной $h_i = (b_i - a_i) / N_i$. Это создаёт сетку из $N = N_1 \times N_2 \times \dots \times N_d$ элементарных гиперпрямоугольников, каждый с объёмом $V_{elem} = h_1 \times h_2 \times \dots \times h_d$.
+
+Пусть $(x_{1,j_1}, x_{2,j_2}, \dots, x_{d,j_d})$ — некоторая точка (например, левый нижний угол, центр или правый верхний угол) в элементарном гиперпрямоугольнике с индексами $(j_1, j_2, \dots, j_d)$, где $1 \le j_i \le N_i$.
+Тогда интеграл $I$ аппроксимируется суммой:
+\[ I \approx \sum_{j_d=1}^{N_d} \dots \sum_{j_1=1}^{N_1} f(x_{1,j_1}, x_{2,j_2}, \dots, x_{d,j_d}) \cdot V_{elem} \]
+В данной работе предполагается, что значения функции $f$ уже заданы на узлах равномерной сетки. Если $F_{j_1, \dots, j_d}$ — это значение функции в узле $(j_1, \dots, j_d)$, то интеграл вычисляется как:
+\[ I \approx V_{elem} \sum_{j_d=1}^{N_d} \dots \sum_{j_1=1}^{N_1} F_{j_1, \dots, j_d} \]
+где $V_{elem} = \prod_{k=1}^{d} h_k$ — это произведение шагов интегрирования по каждой оси.
+
+\section{Общие функции и структура реализации}
+Во всех версиях алгоритма реализован единый интерфейс, основанный на предоставленной системе тестирования, включающий в себя следующие методы.
+
+\subsection*{PreProcessingImpl()}
+На данном этапе происходит подготовка входных данных. Извлекаются:
+\begin{itemize}
+    \item Значения функции на узлах равномерной сетки.
+    \item Размеры сетки по каждому измерению (количество точек по каждой оси).
+    \item Шаги интегрирования по каждой оси.
+\end{itemize}
+Данные считываются из входного буфера \texttt{task\_data->inputs[0]} и сохраняются во внутренних структурах класса для дальнейшей обработки. Проверяется базовая согласованность размеров (например, общее количество значений функции должно соответствовать произведению размеров сетки по измерениям).
+
+\subsection*{ValidationImpl()}
+Этот метод проверяет корректность входных и выходных данных. Основные проверки включают:
+\begin{itemize}
+    \item Соответствие количества переданных значений функции произведению размерностей сетки.
+    \item Соответствие количества шагов интегрирования размерности пространства.
+    \item Наличие и корректность формата буферов для входных и выходных данных.
+    \item Положительность значений шагов интегрирования и размеров сетки.
+\end{itemize}
+Если какие-либо проверки не проходят, метод возвращает \texttt{false}.
+
+\subsection*{RunImpl()}
+Здесь реализуется основная логика вычисления интеграла. Процесс включает:
+\begin{enumerate}
+    \item Вычисление элементарного объёма $V_{elem}$ как произведения всех шагов интегрирования $h_k$.
+    \item Суммирование всех предоставленных значений функции $F_{j_1, \dots, j_d}$.
+    \item Умножение полученной суммы на элементарный объём $V_{elem}$ для получения итогового значения интеграла.
+\end{enumerate}
+В параллельных реализациях именно этап суммирования значений функции будет распараллеливаться.
+
+\subsection*{PostProcessingImpl()}
+На этом этапе результат вычисления интеграла, полученный в \texttt{RunImpl()}, записывается в выходной буфер \texttt{task\_data->outputs[0]} в формате, ожидаемом системой тестирования. Обычно это одно значение типа \texttt{double}.
+\newpage
+
+\section{Описание реализаций}
+
+\subsection{Последовательная реализация (SEQ)}
+\subsubsection*{Особенности}
+Последовательная реализация является базовой и служит для сравнения производительности с параллельными версиями.
+\begin{itemize}
+  \item Все вычисления производятся в одном потоке.
+  \item В методе \texttt{RunImpl()} происходит итеративное суммирование всех значений функции $F_{j_1, \dots, j_d}$, переданных на вход. Пример цикла суммирования:
+\begin{lstlisting}[language=C++, basicstyle=\small\ttfamily, frame=none, numbers=none]
+double total_sum = 0.0;
+// function_values - массив со значениями функции
+// num_function_values - количество этих значений
+for (size_t i = 0; i < num_function_values; ++i) {
+    total_sum += function_values[i];
+}
+\end{lstlisting}
+  \item Параллельно (в смысле, не связано с суммированием) вычисляется элементарный объём $V_{elem}$ как произведение всех шагов интегрирования.
+  \item Итоговый результат интеграла получается умножением накопленной суммы значений функции на $V_{elem}$.
+\end{itemize}
+
+\subsection{OpenMP реализация}
+\subsubsection*{Этапы работы алгоритма и способ распараллеливания}
+Реализация с использованием OpenMP нацелена на распараллеливание наиболее вычислительно затратной части — суммирования значений функции.
+Распараллеливание достигается путем модификации основного цикла суммирования. Если в последовательной версии этот цикл выглядел, как показано в разделе SEQ, то в OpenMP-версии перед ним добавляется директива \texttt{\#pragma omp parallel for reduction(+:total\_sum)}:
+\begin{lstlisting}[language=C++, basicstyle=\small\ttfamily, frame=none, numbers=none]
+double total_sum = 0.0;
+// function_values - массив со значениями функции
+// num_function_values - количество этих значений
+#pragma omp parallel for reduction(+:total_sum)
+for (size_t i = 0; i < num_function_values; ++i) {
+    total_sum += function_values[i];
+}
+\end{lstlisting}
+\begin{itemize}
+  \item Директива \texttt{\#pragma omp parallel for} указывает компилятору распределить итерации цикла между несколькими потоками.
+  \item Клауза \texttt{reduction(+:total\_sum)} обеспечивает корректное и безопасное суммирование. Каждый поток работает со своей приватной копией переменной \texttt{total\_sum}. По завершении цикла приватные копии автоматически суммируются, и результат записывается в исходную переменную \texttt{total\_sum}.
+  \item После завершения параллельного цикла, итоговая сумма умножается на предварительно вычисленный элементарный объём $V_{elem}$.
+\end{itemize}
+
+\subsubsection*{Особенности}
+\begin{itemize}
+  \item Относительно простая модификация последовательного кода для достижения параллелизма (добавление одной директивы).
+  \item OpenMP автоматически управляет созданием, синхронизацией и распределением работы между потоками.
+  \item Хорошо подходит для распараллеливания циклов обработки данных (data parallelism).
+\end{itemize}
+
+\subsection{TBB реализация}
+\subsubsection*{Этапы работы алгоритма и способ распараллеливания}
+Реализация с использованием Intel Threading Building Blocks (TBB) фокусируется на использовании высокоуровневых параллельных алгоритмов. Вместо явного цикла для суммирования, TBB-реализация использует алгоритм \texttt{tbb::parallel\_reduce}. Суммирование массива \texttt{function\_values} размером \texttt{num\_function\_values} реализуется следующим образом:
+\begin{lstlisting}[language=C++, basicstyle=\small\ttfamily, frame=none, numbers=none]
+// function_values - указатель на начало массива значений
+// num_function_values - количество значений
+double total_sum = tbb::parallel_reduce(
+    // Диапазон для обработки: от function_values до function_values + num_function_values
+    tbb::blocked_range<const double*>(function_values, function_values + num_function_values),
+    // Начальное значение для аккумулятора суммы
+    0.0,
+    // Лямбда-функция для вычисления частичной суммы на поддиапазоне (body)
+    [](const tbb::blocked_range<const double*>& r, double current_sum) -> double {
+        for (const double* ptr = r.begin(); ptr != r.end(); ++ptr) {
+            current_sum += *ptr;
+        }
+        return current_sum;
+    },
+    // Лямбда-функция для объединения (редукции) частичных сумм (join)
+    std::plus<double>()
+);
+\end{lstlisting}
+\begin{itemize}
+    \item \texttt{tbb::parallel\_reduce} принимает диапазон данных, начальное значение, функцию для обработки поддиапазонов и функцию для объединения результатов.
+    \item Библиотека TBB автоматически управляет разделением работы на задачи (tasks), их распределением по доступным потокам и динамической балансировкой нагрузки.
+    \item После получения итоговой суммы \texttt{total\_sum} через \texttt{tbb::parallel\_reduce}, она умножается на элементарный объём.
+\end{itemize}
+
+\subsubsection*{Особенности}
+\begin{itemize}
+  \item Использование готовых параллельных алгоритмов упрощает разработку и часто приводит к более эффективному коду.
+  \item TBB обеспечивает эффективное управление потоками и задачами, оптимизируя использование кэша и минимизируя накладные расходы.
+\end{itemize}
+
+\subsubsection*{Преимущества}
+\begin{itemize}
+  \item Высокая производительность и хорошая масштабируемость на многоядерных системах с общей памятью.
+  \item Более абстрактный и композитный подход к параллелизму.
+\end{itemize}
+
+\subsection{STL threads реализация} \label{sec:stl_threads_impl}
+\subsubsection*{Этапы работы алгоритма и способ распараллеливания}
+Эта реализация использует стандартные потоки C++ (\texttt{std::thread}) для распараллеливания суммирования массива \texttt{function\_values}. Последовательный цикл суммирования заменяется на следующую схему:
+\begin{enumerate}
+    \item Определение количества потоков. Часто используется \texttt{unsigned int num\_threads = std::thread::hardware\_concurrency();}. Если это значение равно 0, выбирается 1 или 2 потока.
+    \item Разделение всего массива \texttt{function\_values} (размером \texttt{num\_function\_values}) на \texttt{num\_threads} частей (диапазонов). Рассчитывается размер каждого участка (\texttt{chunk\_size}) и смещения для каждого потока.
+    \item Создание контейнеров для хранения потоков и их результатов: \texttt{std::vector<std::thread> threads(num\_threads);} и \texttt{std::vector<double> partial\_sums(num\_threads);}.
+    \item Запуск потоков. Для каждого $i$-го потока (от 0 до \texttt{num\_threads-1}):
+        \begin{itemize}
+            \item Определяется указатель на начало его участка данных (\texttt{start\_ptr}) и количество элементов для обработки (\texttt{current\_chunk\_size}).
+            \item Создается и запускается поток, который выполняет функцию (часто лямбда-выражение), вычисляющую сумму для этого участка и сохраняющую её в \texttt{partial\_sums[i]}.
+        \end{itemize}
+    Пример функции-воркера и её вызова:
+\begin{lstlisting}[language=C++, basicstyle=\small\ttfamily, frame=none, numbers=none]
+void sum_worker(const double* data_chunk_start, size_t chunk_elements, double& result) {
+    result = 0.0;
+    for (size_t k = 0; k < chunk_elements; ++k) {
+        result += data_chunk_start[k];
+    }
+}
+// ... в цикле запуска потоков для i-го потока:
+// const double* chunk_start = function_values + i * chunk_size;
+// size_t elements_for_this_thread = ...; // рассчитать аккуратно
+// threads[i] = std::thread(sum_worker, chunk_start, elements_for_this_thread, std::ref(partial_sums[i]));
+\end{lstlisting}
+    \item Ожидание завершения всех потоков:
+\begin{lstlisting}[language=C++, basicstyle=\small\ttfamily, frame=none, numbers=none]
+for (std::thread& t : threads) {
+    if (t.joinable()) {
+        t.join();
+    }
+}
+\end{lstlisting}
+    \item Суммирование частичных результатов из \texttt{partial\_sums} для получения итоговой суммы \texttt{total\_sum}.
+\begin{lstlisting}[language=C++, basicstyle=\small\ttfamily, frame=none, numbers=none]
+double total_sum = 0.0;
+for (double p_sum : partial_sums) {
+    total_sum += p_sum;
+}
+\end{lstlisting}
+    \item Итоговая сумма \texttt{total\_sum} умножается на элементарный объём.
+\end{enumerate}
+
+\subsubsection*{Особенности}
+\begin{itemize}
+  \item Требуется явное ручное управление: созданием потоков, корректным разделением данных между ними (включая обработку случаев, когда общее число элементов не делится нацело на число потоков), и синхронизацией (ожидание завершения \texttt{join()}) и сбором результатов.
+  \item Необходимо аккуратно обрабатывать передачу данных потокам (например, использование \texttt{std::ref} для ссылок) и возврат результатов.
+\end{itemize}
+
+\subsubsection*{Преимущества}
+\begin{itemize}
+  \item Полный контроль над жизненным циклом и поведением потоков.
+  \item Является частью стандарта C++ (начиная с C++11), не требует подключения внешних библиотек для базового параллелизма на общей памяти.
+\end{itemize}
+
+\subsection{MPI + STL реализация}
+\subsubsection*{Структура параллелизма}
+Данная реализация предполагает использование гибридного подхода, сочетая параллелизм на уровне процессов (MPI) и, опционально, потоков (STL threads) внутри каждого процесса. Основной акцент для задачи суммирования делается на MPI.
+\begin{itemize}
+  \item \textbf{Первый уровень (MPI)}: Общий массив значений функции распределяется между MPI-процессами.
+    \begin{itemize}
+        \item В корневом процессе (rank 0) происходит чтение всех входных данных (массив \texttt{all\_function\_values}, шаги, размеры).
+        \item Массив \texttt{all\_function\_values} делится на части, и каждая часть (например, \texttt{local\_function\_values}) рассылается соответствующему MPI-процессу. Это может быть реализовано с помощью \texttt{MPI\_Scatterv}. Размеры и шаги обычно рассылаются всем процессам с помощью \texttt{MPI\_Bcast}.
+        \item Каждый MPI-процесс вычисляет частичную сумму для своего набора значений \texttt{local\_function\_values}.
+        \item Частичные суммы со всех процессов собираются в корневом процессе с помощью операции редукции, например, \texttt{MPI\_Reduce} с операцией \texttt{MPI\_SUM}. Корневой процесс получает итоговую сумму \texttt{global\_sum}.
+    \end{itemize}
+  \item \textbf{Второй уровень (STL threads, опционально)}: Внутри каждого MPI-процесса, если его доля данных \texttt{local\_function\_values} достаточно велика, суммирование этой доли может быть дополнительно распараллелено с использованием \texttt{std::thread}. Это делается аналогично подходу, описанному в разделе \ref{sec:stl_threads_impl}, но применяется к массиву \texttt{local\_function\_values} внутри каждого MPI-процесса. Результат (локальная сумма для данного MPI-процесса) затем участвует в \texttt{MPI\_Reduce}. Для простой задачи суммирования, если MPI уже эффективно делит работу, дополнительное распараллеливание через STL может не дать значительного прироста или даже добавить накладных расходов.
+  \item Корневой процесс, получив \texttt{global\_sum}, умножает её на элементарный объём.
+\end{itemize}
+
+\subsubsection*{Особенности}
+\begin{itemize}
+  \item MPI позволяет распределять вычисления между различными узлами кластера или ядрами одного компьютера, работающими в отдельных адресных пространствах.
+  \item STL threads (если используются) обеспечивают параллелизм внутри одного процесса с использованием общей памяти.
+  \item Требуется тщательная координация передачи данных и синхронизации между процессами.
+\end{itemize}
+
+\subsubsection*{Преимущества}
+\begin{itemize}
+  \item Потенциал для масштабирования на системах с распределенной памятью (кластеры).
+  \item Гибридный подход может эффективно использовать многоядерные узлы в кластерной системе.
+\end{itemize}
+
+\section{Результаты экспериментов}
+\subsection*{Тестовые данные}
+Для вычисления многомерных интегралов использовались синтетические данные:
+\begin{itemize}
+  \item Размерность пространства: варьировалась (например, 2D, 3D).
+  \item Количество точек по каждой оси: варьировалось для создания различной вычислительной нагрузки.
+  \item Значения функции: генерировались случайным образом или по заданной формуле.
+  \item Шаги интегрирования: задавались для каждой оси.
+\end{itemize}
+Точные параметры тестовых наборов для представленных ниже результатов должны быть задокументированы в ходе проведения экспериментов.
+
+\subsection*{Производительность (2 потока)}
+В таблице ниже представлены результаты времени выполнения для различных реализаций при использовании двух потоков. Время указано в миллисекундах (ms). "Pipeline" включает общее время выполнения задачи, включая pre/post-processing, "Task" — время выполнения непосредственно вычислительной части (\texttt{RunImpl}).
+
+\begin{tabular}{|l|c|c|}
+\hline
+\textbf{Реализация} & \textbf{Pipeline (ms)} & \textbf{Task (ms)} \\
+\hline
+SEQ       & 6.3042 & 2.8212 \\
+OMP       & 4.7320 & 1.4118 \\
+TBB       & 4.6610 & 1.4146 \\
+STL       & 4.6747 & 1.4199 \\
+MPI+STL   & 7.3570 & 3.4514 \\
+\hline
+\end{tabular}
+
+\subsection*{Ускорение (2 потока)}
+Ускорение ($S_p$) вычисляется как отношение времени выполнения последовательной версии ($T_{seq}$) ко времени выполнения параллельной версии ($T_p$) для вычислительной части (\texttt{RunImpl}).
+\[ S_p = \frac{T_{seq}}{T_p} \]
+Базовое время $T_{seq}$ (Task) = 2.8212 ms.
+
+\begin{itemize}
+    \item $S_{\text{OMP}} = \frac{2.8212}{1.4118} \approx 1.998$
+    \item $S_{\text{TBB}} = \frac{2.8212}{1.4146} \approx 1.994$
+    \item $S_{\text{STL}} = \frac{2.8212}{1.4199} \approx 1.987$
+    \item $S_{\text{MPI+STL}} = \frac{2.8212}{3.4514} \approx 0.817$
+\end{itemize}
+
+\section{Выводы}
+По результатам проведенных экспериментов для вычисления многомерных интегралов методом прямоугольников при использовании двух потоков можно сделать следующие выводы:
+\begin{itemize}
+  \item Реализации, использующие технологии OpenMP, TBB и STL threads, продемонстрировали значительное улучшение производительности по сравнению с последовательной версией. Ускорение для этих версий приближается к двукратному, что является хорошим результатом для двух потоков и указывает на эффективное распараллеливание основной вычислительной нагрузки — суммирования значений функции.
+  \item Технологии OpenMP и TBB предлагают более высокоуровневые и удобные средства для распараллеливания по сравнению с ручным управлением потоками в STL, при этом показывая сопоставимую производительность для данной задачи.
+  \item Реализация MPI+STL в конфигурации для двух потоков показала производительность ниже, чем у последовательной версии. Это может быть связано с существенными накладными расходами на инициализацию MPI, коммуникацию между процессами и управление задачами, которые не компенсируются выигрышем от параллелизма при таком малом количестве вычислительных единиц и для данной структуры задачи. Возможно, данная реализация проявит свои преимущества при большем количестве процессов/ядер или на распределенных системах. Требуется дальнейшее исследование и, возможно, оптимизация данной версии для сценариев с малым числом потоков/процессов или её ориентация на более масштабные конфигурации.
+  \item В целом, для распараллеливания задачи численного интегрирования на многоядерных системах с общей памятью, технологии OpenMP, TBB и STL threads являются эффективными инструментами.
+\end{itemize}
+
+\section*{Список литературы}
+\begin{enumerate}
+  \item OpenMP Architecture Review Board. OpenMP API Specification for Parallel Programming. \url{https://www.openmp.org/}
+  \item Intel. Threading Building Blocks. \url{https://www.intel.com/content/www/us/en/developer/tools/oneapi/onetbb.html}
+  \item Boost C++ Libraries. Boost.MPI. \url{https://www.boost.org/doc/libs/release/doc/html/mpi.html}
+  \item В.П. Гергель. «Теория и практика параллельных вычислений». М.: Интернет-Университет, 2007.
+  \item Материалы лекций и лабораторных работ кафедры ВВСП, ННГУ им. Лобачевского
+\end{enumerate}
+
+\newpage
+\appendix
+\section*{Приложение: Исходные коды реализаций}
+\subsection*{SEQ}
+\begin{lstlisting}
+#include "seq/kharin_m_multidimensional_integral_calc/include/ops_seq.hpp"
+
+#include <cstddef>
+#include <vector>
+
+bool kharin_m_multidimensional_integral_calc_seq::TaskSequential::ValidationImpl() {
+  // Проверяем, что предоставлено ровно 3 входа и 1 выход
+  if (task_data->inputs.size() != 3 || task_data->outputs.size() != 1) {
+    return false;
+  }
+  // Совпадение grid_sizes и step_sizes
+  if (task_data->inputs_count[1] != task_data->inputs_count[2]) {
+    return false;
+  }
+  // Выход должен содержать одно значение
+  if (task_data->outputs_count[0] != 1) {
+    return false;
+  }
+  return true;
+}
+
+bool kharin_m_multidimensional_integral_calc_seq::TaskSequential::PreProcessingImpl() {
+  size_t d = task_data->inputs_count[1];
+  auto* sizes_ptr = reinterpret_cast<size_t*>(task_data->inputs[1]);
+  grid_sizes_ = std::vector<size_t>(sizes_ptr, sizes_ptr + d);
+
+  // Вычисляем общее количество точек сетки
+  size_t total_size = 1;
+  for (const auto& n : grid_sizes_) {
+    total_size *= n;
+  }
+
+  if (task_data->inputs_count[0] != total_size) {
+    return false;
+  }
+  auto* input_ptr = reinterpret_cast<double*>(task_data->inputs[0]);
+  input_ = std::vector<double>(input_ptr, input_ptr + total_size);
+
+  if (task_data->inputs_count[2] != d) {
+    return false;
+  }
+  auto* steps_ptr = reinterpret_cast<double*>(task_data->inputs[2]);
+  step_sizes_ = std::vector<double>(steps_ptr, steps_ptr + d);
+
+  // Проверка на отрицательные шаги
+  for (const auto& h : step_sizes_) {
+    if (h <= 0.0) {
+      return false;  // Отрицательный или нулевой шаг недопустим
+    }
+  }
+
+  output_result_ = 0.0;
+  return true;
+}
+
+bool kharin_m_multidimensional_integral_calc_seq::TaskSequential::RunImpl() {
+  // Вычисляем сумму всех значений функции
+  double total = 0.0;
+  for (const auto& val : input_) {
+    total += val;
+  }
+  // Вычисляем элемент объема как произведение шагов интегрирования
+  double volume_element = 1.0;
+  for (const auto& h : step_sizes_) {
+    volume_element *= h;
+  }
+  // Интеграл = сумма значений * элемент объема
+  output_result_ = total * volume_element;
+  return true;
+}
+
+bool kharin_m_multidimensional_integral_calc_seq::TaskSequential::PostProcessingImpl() {
+  reinterpret_cast<double*>(task_data->outputs[0])[0] = output_result_;
+  return true;
+}
+\end{lstlisting}
+
+\subsection*{OpenMP}
+\begin{lstlisting}
+#include "omp/kharin_m_multidimensional_integral_calc/include/ops_omp.hpp"
+
+#include <omp.h>
+
+#include <cstddef>
+#include <vector>
+
+bool kharin_m_multidimensional_integral_calc_omp::TestTaskOpenMP::ValidationImpl() {
+  // Проверяем, что предоставлено ровно 3 входа и 1 выход
+  if (task_data->inputs.size() != 3 || task_data->outputs.size() != 1) {
+    return false;
+  }
+  // Совпадение grid_sizes и step_sizes
+  if (task_data->inputs_count[1] != task_data->inputs_count[2]) {
+    return false;
+  }
+  // Выход должен содержать одно значение
+  if (task_data->outputs_count[0] != 1) {
+    return false;
+  }
+  return true;
+}
+
+bool kharin_m_multidimensional_integral_calc_omp::TestTaskOpenMP::PreProcessingImpl() {
+  size_t d = task_data->inputs_count[1];
+  auto* sizes_ptr = reinterpret_cast<size_t*>(task_data->inputs[1]);
+  grid_sizes_ = std::vector<size_t>(sizes_ptr, sizes_ptr + d);
+
+  // Вычисляем общее количество точек сетки ПОСЛЕДОВАТЕЛЬНО
+  size_t total_size = 1;
+  for (size_t i = 0; i < grid_sizes_.size(); i++) {
+    total_size *= grid_sizes_[i];
+  }
+
+  if (task_data->inputs_count[0] != total_size) {
+    return false;
+  }
+  auto* input_ptr = reinterpret_cast<double*>(task_data->inputs[0]);
+  input_ = std::vector<double>(input_ptr, input_ptr + total_size);
+
+  if (task_data->inputs_count[2] != d) {
+    return false;
+  }
+  auto* steps_ptr = reinterpret_cast<double*>(task_data->inputs[2]);
+  step_sizes_ = std::vector<double>(steps_ptr, steps_ptr + d);
+
+  // Проверяем шаги ПОСЛЕДОВАТЕЛЬНО (слишком мало итераций для параллелизма)
+  for (const auto& step : step_sizes_) {
+    if (step <= 0.0) {
+      return false;
+    }
+  }
+
+  output_result_ = 0.0;
+  return true;
+}
+
+bool kharin_m_multidimensional_integral_calc_omp::TestTaskOpenMP::RunImpl() {
+  // ОСНОВНАЯ ПАРАЛЛЕЛИЗАЦИЯ
+  double total = 0.0;
+#pragma omp parallel for reduction(+ : total)
+  for (int i = 0; i < static_cast<int>(input_.size()); i++) {
+    total += input_[i];
+  }
+
+  // Вычисляем элемент объема ПОСЛЕДОВАТЕЛЬНО
+  double volume_element = 1.0;
+  for (const auto& step : step_sizes_) {
+    volume_element *= step;
+  }
+
+  output_result_ = total * volume_element;
+  return true;
+}
+
+bool kharin_m_multidimensional_integral_calc_omp::TestTaskOpenMP::PostProcessingImpl() {
+  reinterpret_cast<double*>(task_data->outputs[0])[0] = output_result_;
+  return true;
+}
+\end{lstlisting}
+
+\subsection*{TBB}
+\begin{lstlisting}
+#include "tbb/kharin_m_multidimensional_integral_calc/include/ops_tbb.hpp"
+
+#include <oneapi/tbb/blocked_range.h>
+#include <oneapi/tbb/parallel_reduce.h>
+
+#include <cstddef>
+#include <functional>
+#include <vector>
+
+bool kharin_m_multidimensional_integral_calc_tbb::TestTaskTBB::ValidationImpl() {
+  // Проверяем, что предоставлено ровно 3 входа и 1 выход
+  if (task_data->inputs.size() != 3 || task_data->outputs.size() != 1) {
+    return false;
+  }
+  // Совпадение grid_sizes и step_sizes
+  if (task_data->inputs_count[1] != task_data->inputs_count[2]) {
+    return false;
+  }
+  // Выход должен содержать одно значение
+  if (task_data->outputs_count[0] != 1) {
+    return false;
+  }
+  return true;
+}
+
+bool kharin_m_multidimensional_integral_calc_tbb::TestTaskTBB::PreProcessingImpl() {
+  size_t d = task_data->inputs_count[1];
+  auto* sizes_ptr = reinterpret_cast<size_t*>(task_data->inputs[1]);
+  grid_sizes_ = std::vector<size_t>(sizes_ptr, sizes_ptr + d);
+
+  // Вычисляем общее количество точек ПОСЛЕДОВАТЕЛЬНО (мало итераций)
+  size_t total_size = 1;
+  for (size_t i = 0; i < grid_sizes_.size(); i++) {
+    total_size *= grid_sizes_[i];
+  }
+
+  if (task_data->inputs_count[0] != total_size) {
+    return false;
+  }
+  auto* input_ptr = reinterpret_cast<double*>(task_data->inputs[0]);
+  input_ = std::vector<double>(input_ptr, input_ptr + total_size);
+
+  if (task_data->inputs_count[2] != d) {
+    return false;
+  }
+  auto* steps_ptr = reinterpret_cast<double*>(task_data->inputs[2]);
+  step_sizes_ = std::vector<double>(steps_ptr, steps_ptr + d);
+
+  // Проверяем шаги ПОСЛЕДОВАТЕЛЬНО (мало итераций)
+  for (const auto& step : step_sizes_) {
+    if (step <= 0.0) {
+      return false;
+    }
+  }
+
+  output_result_ = 0.0;
+  return true;
+}
+
+bool kharin_m_multidimensional_integral_calc_tbb::TestTaskTBB::RunImpl() {
+  // ОСНОВНАЯ ПАРАЛЛЕЛИЗАЦИЯ - здесь много работы!
+  double total = tbb::parallel_reduce(
+      tbb::blocked_range<size_t>(0, input_.size()), 0.0,
+      [&](const tbb::blocked_range<size_t>& r, double local_sum) -> double {
+        for (size_t i = r.begin(); i != r.end(); ++i) {
+          local_sum += input_[i];
+        }
+        return local_sum;
+      },
+      std::plus<>());
+
+  // Вычисляем элемент объема ПОСЛЕДОВАТЕЛЬНО (мало итераций)
+  double volume_element = 1.0;
+  for (const auto& step : step_sizes_) {
+    volume_element *= step;
+  }
+
+  output_result_ = total * volume_element;
+  return true;
+}
+
+bool kharin_m_multidimensional_integral_calc_tbb::TestTaskTBB::PostProcessingImpl() {
+  reinterpret_cast<double*>(task_data->outputs[0])[0] = output_result_;
+  return true;
+}
+\end{lstlisting}
+
+\subsection*{STL}
+\begin{lstlisting}
+#include "stl/kharin_m_multidimensional_integral_calc/include/ops_stl.hpp"
+
+#include <algorithm>
+#include <cstddef>
+#include <functional>
+#include <thread>
+#include <utility>
+#include <vector>
+
+#include "core/util/include/util.hpp"
+
+bool kharin_m_multidimensional_integral_calc_stl::TaskSTL::ValidationImpl() {
+  // Проверяем, что предоставлено ровно 3 входа и 1 выход
+  if (task_data->inputs.size() != 3 || task_data->outputs.size() != 1) {
+    return false;
+  }
+  // Совпадение grid_sizes и step_sizes
+  if (task_data->inputs_count[1] != task_data->inputs_count[2]) {
+    return false;
+  }
+  // Выход должен содержать одно значение
+  if (task_data->outputs_count[0] != 1) {
+    return false;
+  }
+  return true;
+}
+
+bool kharin_m_multidimensional_integral_calc_stl::TaskSTL::PreProcessingImpl() {
+  size_t d = task_data->inputs_count[1];
+  auto* sizes_ptr = reinterpret_cast<size_t*>(task_data->inputs[1]);
+  grid_sizes_ = std::vector<size_t>(sizes_ptr, sizes_ptr + d);
+
+  // Вычисляем общее количество точек сетки
+  size_t total_size = 1;
+  for (const auto& n : grid_sizes_) {
+    total_size *= n;
+  }
+
+  if (task_data->inputs_count[0] != total_size) {
+    return false;
+  }
+  auto* input_ptr = reinterpret_cast<double*>(task_data->inputs[0]);
+  input_ = std::vector<double>(input_ptr, input_ptr + total_size);
+
+  if (task_data->inputs_count[2] != d) {
+    return false;
+  }
+  auto* steps_ptr = reinterpret_cast<double*>(task_data->inputs[2]);
+  step_sizes_ = std::vector<double>(steps_ptr, steps_ptr + d);
+
+  // Проверка на отрицательные шаги
+  for (const auto& h : step_sizes_) {
+    if (h <= 0.0) {
+      return false;  // Отрицательный или нулевой шаг недопустим
+    }
+  }
+
+  output_result_ = 0.0;
+  return true;
+}
+
+bool kharin_m_multidimensional_integral_calc_stl::TaskSTL::RunImpl() {
+  if (input_.empty()) {
+    output_result_ = 0.0;
+    return true;  // Интеграл от пустого множества - 0
+  }
+
+  num_threads_ = std::min(static_cast<size_t>(ppc::util::GetPPCNumThreads()), input_.size());
+  std::vector<std::thread> threads;
+  threads.reserve(num_threads_);
+  std::vector<double> partial_sums(num_threads_, 0);
+
+  auto input_chunk_size = input_.size() / num_threads_;
+  auto remainder = input_.size() % num_threads_;
+
+  auto chunk_plus = [&](std::vector<double>::iterator it_begin, size_t size, double& result_location) {
+    double local = 0;
+    for (size_t i = 0; i < size; ++i) {
+      // Cast size_t to iterator difference_type to avoid narrowing conversion
+      local += *(it_begin + static_cast<std::vector<double>::difference_type>(i));
+    }
+    result_location = local;
+  };
+
+  size_t current_start_index = 0;
+  for (size_t i = 0; i < num_threads_; ++i) {
+    size_t size = (i < remainder) ? (input_chunk_size + 1) : input_chunk_size;
+    auto it_begin = input_.begin() + static_cast<std::vector<double>::difference_type>(current_start_index);
+    std::thread th(chunk_plus, it_begin, size, std::ref(partial_sums[i]));
+    threads.push_back(std::move(th));
+    current_start_index += size;
+  }
+
+  for (auto& th : threads) {
+    if (th.joinable()) {
+      //  th.join();
+      th.join();
+    }
+  }
+
+  double total = 0;
+  for (const auto& partial : partial_sums) {
+    total += partial;
+  }
+
+  // Вычисляем элемент объема как произведение шагов интегрирования
+  double volume_element = 1.0;
+  for (const auto& h : step_sizes_) {
+    volume_element *= h;
+  }
+  // Интеграл = сумма значений * элемент объема
+  output_result_ = total * volume_element;
+  return true;
+}
+
+bool kharin_m_multidimensional_integral_calc_stl::TaskSTL::PostProcessingImpl() {
+  reinterpret_cast<double*>(task_data->outputs[0])[0] = output_result_;
+  return true;
+}
+\end{lstlisting}
+
+\subsection*{MPI + STL}
+\begin{lstlisting}
+#include "all/kharin_m_multidimensional_integral_calc/include/ops_all.hpp"
+
+#include <algorithm>
+#include <boost/mpi/collectives/all_reduce.hpp>
+#include <boost/mpi/collectives/broadcast.hpp>
+#include <boost/mpi/collectives/scatterv.hpp>
+#include <boost/serialization/vector.hpp>  // NOLINT(misc-include-cleaner)
+#include <cstddef>
+#include <functional>
+#include <thread>
+#include <utility>
+#include <vector>
+
+#include "boost/mpi/collectives/reduce.hpp"
+#include "core/util/include/util.hpp"
+
+bool kharin_m_multidimensional_integral_calc_all::TaskALL::ValidationImpl() {
+  bool is_valid = true;
+  if (world_.rank() == 0) {
+    // Объединяем условия с одинаковым телом в одно составное условие
+    if (task_data->inputs.size() != 3 || task_data->outputs.size() != 1 ||
+        task_data->inputs_count[1] != task_data->inputs_count[2] || task_data->outputs_count[0] != 1) {
+      is_valid = false;
+    }
+  }
+  boost::mpi::broadcast(world_, is_valid, 0);
+  return is_valid;
+}
+
+bool kharin_m_multidimensional_integral_calc_all::TaskALL::PreProcessingImpl() {
+  if (world_.rank() == 0) {
+    auto* input_ptr = reinterpret_cast<double*>(task_data->inputs[0]);
+    size_t input_size = task_data->inputs_count[0];
+    input_ = std::vector<double>(input_ptr, input_ptr + input_size);
+    auto* sizes_ptr = reinterpret_cast<size_t*>(task_data->inputs[1]);
+    size_t d = task_data->inputs_count[1];
+    grid_sizes_ = std::vector<size_t>(sizes_ptr, sizes_ptr + d);
+    auto* steps_ptr = reinterpret_cast<double*>(task_data->inputs[2]);
+    step_sizes_ = std::vector<double>(steps_ptr, steps_ptr + d);
+  }
+  return true;
+}
+
+double kharin_m_multidimensional_integral_calc_all::TaskALL::ComputeLocalSum() {
+  if (local_input_.empty()) {
+    return 0.0;
+  }
+
+  // Определение количества потоков
+  num_threads_ = std::min(static_cast<size_t>(ppc::util::GetPPCNumThreads()), local_input_.size());
+  if (num_threads_ == 0) {
+    return 0.0;  // Дополнительная проверка
+  }
+
+  std::vector<std::thread> threads;
+  threads.reserve(num_threads_);
+  std::vector<double> partial_sums(num_threads_, 0.0);
+
+  // Распределение работы между потоками
+  auto input_chunk_size = local_input_.size() / num_threads_;
+  auto remainder = local_input_.size() % num_threads_;
+
+  auto chunk_plus = [&](std::vector<double>::iterator it_begin, size_t size, double& result_location) {
+    double local = 0.0;
+    for (size_t i = 0; i < size; ++i) {
+      local += *(it_begin + static_cast<std::vector<double>::difference_type>(i));
+    }
+    result_location = local;
+  };
+
+  size_t current_start_index = 0;
+  for (size_t i = 0; i < num_threads_; ++i) {
+    size_t size = (i < remainder) ? (input_chunk_size + 1) : input_chunk_size;
+    auto it_begin = local_input_.begin() + static_cast<std::vector<double>::difference_type>(current_start_index);
+    std::thread th(chunk_plus, it_begin, size, std::ref(partial_sums[i]));
+    threads.push_back(std::move(th));
+    current_start_index += size;
+  }
+
+  // Ожидание завершения потоков
+  for (auto& th : threads) {
+    if (th.joinable()) {
+      th.join();
+    }
+  }
+
+  // Суммирование частичных результатов
+  double local_sum = 0.0;
+  for (const auto& partial : partial_sums) {
+    local_sum += partial;
+  }
+
+  return local_sum;
+}
+
+bool kharin_m_multidimensional_integral_calc_all::TaskALL::RunImpl() {
+  // Рассылка grid_sizes_ и step_sizes_ всем процессам
+  boost::mpi::broadcast(world_, grid_sizes_, 0);
+  boost::mpi::broadcast(world_, step_sizes_, 0);
+  // Проверка шагов
+  bool local_steps_valid = std::ranges::all_of(step_sizes_, [](double h) { return h > 0.0; });
+  bool all_steps_valid = false;
+  boost::mpi::all_reduce(world_, local_steps_valid, all_steps_valid, std::logical_and<>());
+  if (!all_steps_valid) {
+    if (world_.rank() == 0) {
+      output_result_ = 0.0;
+    }
+    return false;
+  }
+
+  // Распределение данных
+  size_t total_size = 1;
+  for (auto n : grid_sizes_) {
+    total_size *= n;
+  }
+  size_t p = world_.size();
+  size_t chunk_size = total_size / p;
+  size_t remainder = total_size % p;
+  size_t rank = world_.rank();
+  size_t local_size = (rank < remainder) ? chunk_size + 1 : chunk_size;
+  local_input_.resize(local_size);
+
+  if (world_.rank() == 0) {
+    std::vector<int> send_counts(p);
+    std::vector<int> displacements(p);
+    size_t offset = 0;
+    for (size_t i = 0; i < p; ++i) {
+      size_t size = (i < remainder) ? chunk_size + 1 : chunk_size;
+      send_counts[i] = static_cast<int>(size);
+      displacements[i] = static_cast<int>(offset);
+      offset += size;
+    }
+    boost::mpi::scatterv(world_, input_, send_counts, displacements, local_input_.data(),
+                         static_cast<int>(local_input_.size()), 0);
+  } else {
+    boost::mpi::scatterv(world_, local_input_.data(), static_cast<int>(local_input_.size()), 0);
+  }
+
+  double local_sum = ComputeLocalSum();
+  double total_sum = 0.0;
+  boost::mpi::reduce(world_, local_sum, total_sum, std::plus<>(), 0);
+
+  if (world_.rank() == 0) {
+    double volume_element = 1.0;
+    for (const auto& h : step_sizes_) {
+      volume_element *= h;
+    }
+    output_result_ = total_sum * volume_element;
+  }
+  return true;
+}
+
+bool kharin_m_multidimensional_integral_calc_all::TaskALL::PostProcessingImpl() {
+  // Отправка результата всем процессам
+  boost::mpi::broadcast(world_, output_result_, 0);
+
+  // Запись результата в выходные данные
+  if (!task_data->outputs.empty() && !task_data->outputs_count.empty() && task_data->outputs_count[0] > 0) {
+    reinterpret_cast<double*>(task_data->outputs[0])[0] = output_result_;
+  }
+
+  return true;
+}
+\end{lstlisting}
+
+\end{document}
+Footer
