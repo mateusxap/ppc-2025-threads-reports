@@ -489,7 +489,6 @@ bool kharin_m_multidimensional_integral_calc_tbb::TestTaskTBB::ValidationImpl() 
   if (task_data->inputs.size() != 3 || task_data->outputs.size() != 1) {
     return false;
   }
-  // Совпадение grid_sizes и step_sizes
   if (task_data->inputs_count[1] != task_data->inputs_count[2]) {
     return false;
   }
