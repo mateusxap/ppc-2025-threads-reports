@@ -121,8 +121,6 @@
   \item В методе \texttt{RunImpl()} происходит итеративное суммирование всех значений функции $F_{j_1, \dots, j_d}$, переданных на вход. Пример цикла суммирования:
 \begin{lstlisting}[language=C++, basicstyle=\small\ttfamily, frame=none, numbers=none]
 double total_sum = 0.0;
-// function_values - массив со значениями функции
-// num_function_values - количество этих значений
 for (size_t i = 0; i < num_function_values; ++i) {
     total_sum += function_values[i];
 }
@@ -137,8 +135,6 @@ for (size_t i = 0; i < num_function_values; ++i) {
 Распараллеливание достигается путем модификации основного цикла суммирования. Если в последовательной версии этот цикл выглядел, как показано в разделе SEQ, то в OpenMP-версии перед ним добавляется директива \texttt{\#pragma omp parallel for reduction(+:total\_sum)}:
 \begin{lstlisting}[language=C++, basicstyle=\small\ttfamily, frame=none, numbers=none]
 double total_sum = 0.0;
-// function_values - массив со значениями функции
-// num_function_values - количество этих значений
 #pragma omp parallel for reduction(+:total_sum)
 for (size_t i = 0; i < num_function_values; ++i) {
     total_sum += function_values[i];
@@ -161,21 +157,15 @@ for (size_t i = 0; i < num_function_values; ++i) {
 \subsubsection*{Этапы работы алгоритма и способ распараллеливания}
 Реализация с использованием Intel Threading Building Blocks (TBB) фокусируется на использовании высокоуровневых параллельных алгоритмов. Вместо явного цикла для суммирования, TBB-реализация использует алгоритм \texttt{tbb::parallel\_reduce}. Суммирование массива \texttt{function\_values} размером \texttt{num\_function\_values} реализуется следующим образом:
 \begin{lstlisting}[language=C++, basicstyle=\small\ttfamily, frame=none, numbers=none]
-// function_values - указатель на начало массива значений
-// num_function_values - количество значений
 double total_sum = tbb::parallel_reduce(
-    // Диапазон для обработки: от function_values до function_values + num_function_values
     tbb::blocked_range<const double*>(function_values, function_values + num_function_values),
-    // Начальное значение для аккумулятора суммы
     0.0,
-    // Лямбда-функция для вычисления частичной суммы на поддиапазоне (body)
     [](const tbb::blocked_range<const double*>& r, double current_sum) -> double {
         for (const double* ptr = r.begin(); ptr != r.end(); ++ptr) {
             current_sum += *ptr;
         }
         return current_sum;
     },
-    // Лямбда-функция для объединения (редукции) частичных сумм (join)
     std::plus<double>()
 );
 \end{lstlisting}
@@ -217,9 +207,7 @@ void sum_worker(const double* data_chunk_start, size_t chunk_elements, double& r
         result += data_chunk_start[k];
     }
 }
-// ... в цикле запуска потоков для i-го потока:
 // const double* chunk_start = function_values + i * chunk_size;
-// size_t elements_for_this_thread = ...; // рассчитать аккуратно
 // threads[i] = std::thread(sum_worker, chunk_start, elements_for_this_thread, std::ref(partial_sums[i]));
 \end{lstlisting}
     \item Ожидание завершения всех потоков:
