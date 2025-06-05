@@ -347,15 +347,12 @@ MPI+STL   & 7.3570 & 3.4514 \\
 #include <vector>
 
 bool kharin_m_multidimensional_integral_calc_seq::TaskSequential::ValidationImpl() {
-  // Проверяем, что предоставлено ровно 3 входа и 1 выход
   if (task_data->inputs.size() != 3 || task_data->outputs.size() != 1) {
     return false;
   }
-  // Совпадение grid_sizes и step_sizes
   if (task_data->inputs_count[1] != task_data->inputs_count[2]) {
     return false;
   }
-  // Выход должен содержать одно значение
   if (task_data->outputs_count[0] != 1) {
     return false;
   }
@@ -367,7 +364,6 @@ bool kharin_m_multidimensional_integral_calc_seq::TaskSequential::PreProcessingI
   auto* sizes_ptr = reinterpret_cast<size_t*>(task_data->inputs[1]);
   grid_sizes_ = std::vector<size_t>(sizes_ptr, sizes_ptr + d);
 
-  // Вычисляем общее количество точек сетки
   size_t total_size = 1;
   for (const auto& n : grid_sizes_) {
     total_size *= n;
@@ -385,10 +381,9 @@ bool kharin_m_multidimensional_integral_calc_seq::TaskSequential::PreProcessingI
   auto* steps_ptr = reinterpret_cast<double*>(task_data->inputs[2]);
   step_sizes_ = std::vector<double>(steps_ptr, steps_ptr + d);
 
-  // Проверка на отрицательные шаги
   for (const auto& h : step_sizes_) {
     if (h <= 0.0) {
-      return false;  // Отрицательный или нулевой шаг недопустим
+      return false;
     }
   }
 
@@ -397,17 +392,14 @@ bool kharin_m_multidimensional_integral_calc_seq::TaskSequential::PreProcessingI
 }
 
 bool kharin_m_multidimensional_integral_calc_seq::TaskSequential::RunImpl() {
-  // Вычисляем сумму всех значений функции
   double total = 0.0;
   for (const auto& val : input_) {
     total += val;
   }
-  // Вычисляем элемент объема как произведение шагов интегрирования
   double volume_element = 1.0;
   for (const auto& h : step_sizes_) {
     volume_element *= h;
   }
-  // Интеграл = сумма значений * элемент объема
   output_result_ = total * volume_element;
   return true;
 }
@@ -428,15 +420,12 @@ bool kharin_m_multidimensional_integral_calc_seq::TaskSequential::PostProcessing
 #include <vector>
 
 bool kharin_m_multidimensional_integral_calc_omp::TestTaskOpenMP::ValidationImpl() {
-  // Проверяем, что предоставлено ровно 3 входа и 1 выход
   if (task_data->inputs.size() != 3 || task_data->outputs.size() != 1) {
     return false;
   }
-  // Совпадение grid_sizes и step_sizes
   if (task_data->inputs_count[1] != task_data->inputs_count[2]) {
     return false;
   }
-  // Выход должен содержать одно значение
   if (task_data->outputs_count[0] != 1) {
     return false;
   }
@@ -448,7 +437,6 @@ bool kharin_m_multidimensional_integral_calc_omp::TestTaskOpenMP::PreProcessingI
   auto* sizes_ptr = reinterpret_cast<size_t*>(task_data->inputs[1]);
   grid_sizes_ = std::vector<size_t>(sizes_ptr, sizes_ptr + d);
 
-  // Вычисляем общее количество точек сетки ПОСЛЕДОВАТЕЛЬНО
   size_t total_size = 1;
   for (size_t i = 0; i < grid_sizes_.size(); i++) {
     total_size *= grid_sizes_[i];
@@ -466,7 +454,6 @@ bool kharin_m_multidimensional_integral_calc_omp::TestTaskOpenMP::PreProcessingI
   auto* steps_ptr = reinterpret_cast<double*>(task_data->inputs[2]);
   step_sizes_ = std::vector<double>(steps_ptr, steps_ptr + d);
 
-  // Проверяем шаги ПОСЛЕДОВАТЕЛЬНО (слишком мало итераций для параллелизма)
   for (const auto& step : step_sizes_) {
     if (step <= 0.0) {
       return false;
@@ -478,14 +465,12 @@ bool kharin_m_multidimensional_integral_calc_omp::TestTaskOpenMP::PreProcessingI
 }
 
 bool kharin_m_multidimensional_integral_calc_omp::TestTaskOpenMP::RunImpl() {
-  // ОСНОВНАЯ ПАРАЛЛЕЛИЗАЦИЯ
   double total = 0.0;
 #pragma omp parallel for reduction(+ : total)
   for (int i = 0; i < static_cast<int>(input_.size()); i++) {
     total += input_[i];
   }
 
-  // Вычисляем элемент объема ПОСЛЕДОВАТЕЛЬНО
   double volume_element = 1.0;
   for (const auto& step : step_sizes_) {
     volume_element *= step;
@@ -513,7 +498,6 @@ bool kharin_m_multidimensional_integral_calc_omp::TestTaskOpenMP::PostProcessing
 #include <vector>
 
 bool kharin_m_multidimensional_integral_calc_tbb::TestTaskTBB::ValidationImpl() {
-  // Проверяем, что предоставлено ровно 3 входа и 1 выход
   if (task_data->inputs.size() != 3 || task_data->outputs.size() != 1) {
     return false;
   }
@@ -521,7 +505,6 @@ bool kharin_m_multidimensional_integral_calc_tbb::TestTaskTBB::ValidationImpl() 
   if (task_data->inputs_count[1] != task_data->inputs_count[2]) {
     return false;
   }
-  // Выход должен содержать одно значение
   if (task_data->outputs_count[0] != 1) {
     return false;
   }
@@ -533,7 +516,6 @@ bool kharin_m_multidimensional_integral_calc_tbb::TestTaskTBB::PreProcessingImpl
   auto* sizes_ptr = reinterpret_cast<size_t*>(task_data->inputs[1]);
   grid_sizes_ = std::vector<size_t>(sizes_ptr, sizes_ptr + d);
 
-  // Вычисляем общее количество точек ПОСЛЕДОВАТЕЛЬНО (мало итераций)
   size_t total_size = 1;
   for (size_t i = 0; i < grid_sizes_.size(); i++) {
     total_size *= grid_sizes_[i];
@@ -551,7 +533,6 @@ bool kharin_m_multidimensional_integral_calc_tbb::TestTaskTBB::PreProcessingImpl
   auto* steps_ptr = reinterpret_cast<double*>(task_data->inputs[2]);
   step_sizes_ = std::vector<double>(steps_ptr, steps_ptr + d);
 
-  // Проверяем шаги ПОСЛЕДОВАТЕЛЬНО (мало итераций)
   for (const auto& step : step_sizes_) {
     if (step <= 0.0) {
       return false;
@@ -563,7 +544,6 @@ bool kharin_m_multidimensional_integral_calc_tbb::TestTaskTBB::PreProcessingImpl
 }
 
 bool kharin_m_multidimensional_integral_calc_tbb::TestTaskTBB::RunImpl() {
-  // ОСНОВНАЯ ПАРАЛЛЕЛИЗАЦИЯ - здесь много работы!
   double total = tbb::parallel_reduce(
       tbb::blocked_range<size_t>(0, input_.size()), 0.0,
       [&](const tbb::blocked_range<size_t>& r, double local_sum) -> double {
@@ -574,7 +554,6 @@ bool kharin_m_multidimensional_integral_calc_tbb::TestTaskTBB::RunImpl() {
       },
       std::plus<>());
 
-  // Вычисляем элемент объема ПОСЛЕДОВАТЕЛЬНО (мало итераций)
   double volume_element = 1.0;
   for (const auto& step : step_sizes_) {
     volume_element *= step;
@@ -604,15 +583,12 @@ bool kharin_m_multidimensional_integral_calc_tbb::TestTaskTBB::PostProcessingImp
 #include "core/util/include/util.hpp"
 
 bool kharin_m_multidimensional_integral_calc_stl::TaskSTL::ValidationImpl() {
-  // Проверяем, что предоставлено ровно 3 входа и 1 выход
   if (task_data->inputs.size() != 3 || task_data->outputs.size() != 1) {
     return false;
   }
-  // Совпадение grid_sizes и step_sizes
   if (task_data->inputs_count[1] != task_data->inputs_count[2]) {
     return false;
   }
-  // Выход должен содержать одно значение
   if (task_data->outputs_count[0] != 1) {
     return false;
   }
@@ -624,7 +600,6 @@ bool kharin_m_multidimensional_integral_calc_stl::TaskSTL::PreProcessingImpl() {
   auto* sizes_ptr = reinterpret_cast<size_t*>(task_data->inputs[1]);
   grid_sizes_ = std::vector<size_t>(sizes_ptr, sizes_ptr + d);
 
-  // Вычисляем общее количество точек сетки
   size_t total_size = 1;
   for (const auto& n : grid_sizes_) {
     total_size *= n;
@@ -641,11 +616,9 @@ bool kharin_m_multidimensional_integral_calc_stl::TaskSTL::PreProcessingImpl() {
   }
   auto* steps_ptr = reinterpret_cast<double*>(task_data->inputs[2]);
   step_sizes_ = std::vector<double>(steps_ptr, steps_ptr + d);
-
-  // Проверка на отрицательные шаги
   for (const auto& h : step_sizes_) {
     if (h <= 0.0) {
-      return false;  // Отрицательный или нулевой шаг недопустим
+      return false;
     }
   }
 
@@ -656,7 +629,7 @@ bool kharin_m_multidimensional_integral_calc_stl::TaskSTL::PreProcessingImpl() {
 bool kharin_m_multidimensional_integral_calc_stl::TaskSTL::RunImpl() {
   if (input_.empty()) {
     output_result_ = 0.0;
-    return true;  // Интеграл от пустого множества - 0
+    return true;
   }
 
   num_threads_ = std::min(static_cast<size_t>(ppc::util::GetPPCNumThreads()), input_.size());
@@ -697,12 +670,10 @@ bool kharin_m_multidimensional_integral_calc_stl::TaskSTL::RunImpl() {
     total += partial;
   }
 
-  // Вычисляем элемент объема как произведение шагов интегрирования
   double volume_element = 1.0;
   for (const auto& h : step_sizes_) {
     volume_element *= h;
   }
-  // Интеграл = сумма значений * элемент объема
   output_result_ = total * volume_element;
   return true;
 }
@@ -734,7 +705,6 @@ bool kharin_m_multidimensional_integral_calc_stl::TaskSTL::PostProcessingImpl() 
 bool kharin_m_multidimensional_integral_calc_all::TaskALL::ValidationImpl() {
   bool is_valid = true;
   if (world_.rank() == 0) {
-    // Объединяем условия с одинаковым телом в одно составное условие
     if (task_data->inputs.size() != 3 || task_data->outputs.size() != 1 ||
         task_data->inputs_count[1] != task_data->inputs_count[2] || task_data->outputs_count[0] != 1) {
       is_valid = false;
@@ -763,17 +733,15 @@ double kharin_m_multidimensional_integral_calc_all::TaskALL::ComputeLocalSum() {
     return 0.0;
   }
 
-  // Определение количества потоков
   num_threads_ = std::min(static_cast<size_t>(ppc::util::GetPPCNumThreads()), local_input_.size());
   if (num_threads_ == 0) {
-    return 0.0;  // Дополнительная проверка
+    return 0.0;
   }
 
   std::vector<std::thread> threads;
   threads.reserve(num_threads_);
   std::vector<double> partial_sums(num_threads_, 0.0);
 
-  // Распределение работы между потоками
   auto input_chunk_size = local_input_.size() / num_threads_;
   auto remainder = local_input_.size() % num_threads_;
 
@@ -794,14 +762,12 @@ double kharin_m_multidimensional_integral_calc_all::TaskALL::ComputeLocalSum() {
     current_start_index += size;
   }
 
-  // Ожидание завершения потоков
   for (auto& th : threads) {
     if (th.joinable()) {
       th.join();
     }
   }
 
-  // Суммирование частичных результатов
   double local_sum = 0.0;
   for (const auto& partial : partial_sums) {
     local_sum += partial;
@@ -811,10 +777,8 @@ double kharin_m_multidimensional_integral_calc_all::TaskALL::ComputeLocalSum() {
 }
 
 bool kharin_m_multidimensional_integral_calc_all::TaskALL::RunImpl() {
-  // Рассылка grid_sizes_ и step_sizes_ всем процессам
   boost::mpi::broadcast(world_, grid_sizes_, 0);
   boost::mpi::broadcast(world_, step_sizes_, 0);
-  // Проверка шагов
   bool local_steps_valid = std::ranges::all_of(step_sizes_, [](double h) { return h > 0.0; });
   bool all_steps_valid = false;
   boost::mpi::all_reduce(world_, local_steps_valid, all_steps_valid, std::logical_and<>());
@@ -825,7 +789,6 @@ bool kharin_m_multidimensional_integral_calc_all::TaskALL::RunImpl() {
     return false;
   }
 
-  // Распределение данных
   size_t total_size = 1;
   for (auto n : grid_sizes_) {
     total_size *= n;
@@ -868,10 +831,8 @@ bool kharin_m_multidimensional_integral_calc_all::TaskALL::RunImpl() {
 }
 
 bool kharin_m_multidimensional_integral_calc_all::TaskALL::PostProcessingImpl() {
-  // Отправка результата всем процессам
   boost::mpi::broadcast(world_, output_result_, 0);
 
-  // Запись результата в выходные данные
   if (!task_data->outputs.empty() && !task_data->outputs_count.empty() && task_data->outputs_count[0] > 0) {
     reinterpret_cast<double*>(task_data->outputs[0])[0] = output_result_;
   }
@@ -879,6 +840,4 @@ bool kharin_m_multidimensional_integral_calc_all::TaskALL::PostProcessingImpl() 
   return true;
 }
 \end{lstlisting}
-
 \end{document}
-Footer
